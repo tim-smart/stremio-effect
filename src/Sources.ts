@@ -1,6 +1,5 @@
 import {
   Array,
-  Cache,
   Context,
   Data,
   Effect,
@@ -12,6 +11,7 @@ import {
 import * as Stremio from "stremio-addon-sdk"
 import { StreamRequest } from "./Stremio.js"
 import { bytesToSize, cacheWithSpan } from "./Utils.js"
+import { RefailError } from "@effect/platform/Error"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
@@ -92,15 +92,10 @@ const qualityOrder = Order.make<string>((a, b) => {
 
 // domain
 
-export class SourceError extends Data.TaggedError("SourceError")<{
-  reason: "NotFound" | "Unauthorized" | "Unknown"
-  cause?: unknown
-}> {}
-
 export interface Source {
   readonly list: (
     request: StreamRequest,
-  ) => Effect.Effect<ReadonlyArray<SourceStream>, SourceError>
+  ) => Effect.Effect<ReadonlyArray<SourceStream>>
 }
 
 export class SourceStream extends Data.Class<{
@@ -156,5 +151,5 @@ export interface Embellisher {
   readonly transform: (
     streams: ReadonlyArray<SourceStream>,
     baseUrl: string,
-  ) => Effect.Effect<ReadonlyArray<SourceStream>, SourceError>
+  ) => Effect.Effect<ReadonlyArray<SourceStream>>
 }

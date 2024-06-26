@@ -146,8 +146,6 @@ export const RealDebridLive = Effect.gen(function* () {
       Effect.catchTags({
         ParseError: () => HttpServerResponse.empty({ status: 400 }),
       }),
-      Effect.tapErrorCause(Effect.logDebug),
-      Effect.orElseSucceed(() => HttpServerResponse.empty({ status: 500 })),
       Effect.annotateLogs({
         service: "RealDebrid",
         method: "http",

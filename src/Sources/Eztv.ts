@@ -60,6 +60,7 @@ export const SourceEztvLive = Effect.gen(function* () {
           Stream.map(tor => tor.asStream),
           Stream.runCollect,
           Effect.map(Chunk.toReadonlyArray),
+          Effect.catchTag("ParseError", () => Effect.succeed([])),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Eztv.list", {

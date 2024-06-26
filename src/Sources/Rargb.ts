@@ -3,7 +3,16 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Data, Effect, flow, identity, Layer, pipe } from "effect"
+import {
+  Array,
+  Data,
+  Effect,
+  flow,
+  identity,
+  Layer,
+  Option,
+  pipe,
+} from "effect"
 import * as Cheerio from "cheerio"
 import { Sources, SourceStream } from "../Sources.js"
 import {
@@ -13,7 +22,7 @@ import {
   qualityFromTitle,
 } from "../Utils.js"
 import { StreamRequest } from "../Stremio.js"
-import { Ombd } from "../Omdb.js"
+import { Cinemeta } from "../Cinemeta.js"
 
 type Category = "tv" | "anime" | "movies"
 
@@ -66,19 +75,13 @@ export const SourceRargbLive = Effect.gen(function* () {
     readonly query: string
     readonly episodeQuery?: string
     readonly categories: ReadonlyArray<Category>
-  }> {
-    get fullQuery() {
-      return this.episodeQuery
-        ? `${this.query} ${this.episodeQuery}`
-        : this.query
-    }
-  }
+  }> {}
 
   const searchCache = yield* cacheWithSpan({
     lookup: (request: SearchRequest) =>
       HttpClientRequest.get("/search/").pipe(
         HttpClientRequest.setUrlParams({
-          search: request.fullQuery,
+          search: request.query,
           "category[]": request.categories,
         }),
         client,
@@ -122,18 +125,18 @@ export const SourceRargbLive = Effect.gen(function* () {
     timeToLive: "12 hours",
   })
 
-  const ombd = yield* Ombd
+  const cinemeta = yield* Cinemeta
   const sources = yield* Sources
   yield* sources.register({
     list: StreamRequest.$match({
       Channel: () => Effect.succeed([]),
       Movie: ({ imdbId }) =>
         pipe(
-          ombd.fromImdb(imdbId),
+          cinemeta.lookupMovie(imdbId),
           Effect.andThen(result =>
             searchCache(
               new SearchRequest({
-                query: result.movieQuery,
+                query: result.name,
                 categories: ["movies"],
               }),
             ),
@@ -148,16 +151,25 @@ export const SourceRargbLive = Effect.gen(function* () {
         ),
       Series: ({ imdbId, season, episode }) =>
         pipe(
-          ombd.fromImdb(imdbId),
+          cinemeta.lookupEpisode(imdbId, season, episode),
           Effect.andThen(result =>
-            searchCache(
-              new SearchRequest({
-                query: result.Title,
-                episodeQuery: formatEpisode(season, episode),
-                categories: ["tv", "anime"],
+            Effect.forEach(
+              Option.match(result.episode, {
+                onNone: () => result.series.queries(season, episode),
+                onSome: _ => _.queries(result.series.name),
               }),
+              query =>
+                searchCache(
+                  new SearchRequest({
+                    query,
+                    episodeQuery: formatEpisode(season, episode),
+                    categories: ["tv", "anime"],
+                  }),
+                ),
+              { concurrency: "unbounded" },
             ),
           ),
+          Effect.map(Array.flatten),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => [] as SourceStream[]),
           Effect.withSpan("Source.Rarbg.Series", {
@@ -176,5 +188,5 @@ export const SourceRargbLive = Effect.gen(function* () {
 }).pipe(
   Layer.scopedDiscard,
   Layer.provide(Sources.Live),
-  Layer.provide(Ombd.Live),
+  Layer.provide(Cinemeta.Live),
 )

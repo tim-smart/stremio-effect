@@ -37,7 +37,7 @@ export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
 }
 
 export class StremioRouter extends HttpRouter.Tag(
-  "StremioRouter",
+  "stremio/StremioRouter",
 )<StremioRouter>() {}
 
 export const layerAddon = Effect.gen(function* () {
@@ -81,15 +81,13 @@ export const layerAddon = Effect.gen(function* () {
         ),
       ),
     ),
-    Effect.catchTags({
-      RouteNotFound: () => HttpServerResponse.empty({ status: 404 }),
-    }),
     HttpMiddleware.cors(),
     HttpServer.serve(HttpMiddleware.logger),
     HttpServer.withLogAddress,
   )
 }).pipe(
   Layer.unwrapEffect,
+  Layer.annotateLogs({ service: "Stremio" }),
   Layer.provide(Sources.Live),
   Layer.provide(StremioRouter.Live),
 )
