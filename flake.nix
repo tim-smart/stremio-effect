@@ -48,7 +48,7 @@
           };
 
           settings.processes.tsx = {
-            command = "bun run --watch src/main.ts";
+            command = "tsx --env-file=.env src/main-node.ts";
           };
         };
 

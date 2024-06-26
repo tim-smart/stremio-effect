@@ -2,21 +2,8 @@ import { BunHttpServer, BunRuntime } from "@effect/platform-bun"
 import * as Stremio from "./Stremio.js"
 import { Layer, Logger, LogLevel } from "effect"
 import { HttpClient } from "@effect/platform"
-import { SourceYtsLive } from "./Sources/Yts.js"
-import { RealDebridLive } from "./RealDebrid.js"
-import { SourceEztvLive } from "./Sources/Eztv.js"
-import { SourceTpbLive } from "./Sources/Tpb.js"
-import { SourceRargbLive } from "./Sources/Rargb.js"
 import { TracingLive } from "./Tracing.js"
-
-const AllSources = Layer.mergeAll(
-  SourceYtsLive,
-  SourceEztvLive,
-  SourceTpbLive,
-  SourceRargbLive,
-)
-
-const AllSourcesDebrid = Layer.mergeAll(AllSources, RealDebridLive)
+import { AllSourcesDebrid } from "./Sources/All.js"
 
 const HttpLive = Stremio.layerAddon.pipe(
   Layer.provide(

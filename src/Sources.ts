@@ -11,7 +11,6 @@ import {
 import * as Stremio from "stremio-addon-sdk"
 import { StreamRequest } from "./Stremio.js"
 import { bytesToSize, cacheWithSpan } from "./Utils.js"
-import { RefailError } from "@effect/platform/Error"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
