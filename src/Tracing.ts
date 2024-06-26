@@ -11,7 +11,6 @@ export const TracingLive = Layer.unwrapEffect(
     if (Option.isNone(endpoint)) {
       return Layer.empty
     }
-    console.log("Tracing enabled", endpoint.value)
     return NodeSdk.layer(() => ({
       resource: {
         serviceName: "stremio-effect",
