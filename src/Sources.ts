@@ -3,6 +3,8 @@ import {
   Context,
   Data,
   Effect,
+  Equal,
+  Hash,
   Layer,
   Order,
   pipe,
@@ -32,7 +34,7 @@ const make = Effect.gen(function* () {
       () => Effect.sync(() => embellishers.delete(embellisher)),
     )
 
-  const listUncached = (request: StreamRequest, baseUrl: string) =>
+  const listUncached = (request: StreamRequest, baseUrl: URL) =>
     Effect.forEach(sources, source => source.list(request), {
       concurrency: "unbounded",
     }).pipe(
@@ -50,15 +52,22 @@ const make = Effect.gen(function* () {
     )
   class ListRequest extends Data.Class<{
     readonly request: StreamRequest
-    readonly baseUrl: string
-  }> {}
+    readonly baseUrl: URL
+  }> {
+    [Equal.symbol](that: ListRequest): boolean {
+      return Equal.equals(this.request, that.request)
+    }
+    [Hash.symbol]() {
+      return Hash.hash(this.request)
+    }
+  }
   const listCache = yield* cacheWithSpan({
     lookup: (request: ListRequest) =>
       listUncached(request.request, request.baseUrl),
     capacity: 1024,
     timeToLive: "1 hour",
   })
-  const list = (request: StreamRequest, baseUrl: string) =>
+  const list = (request: StreamRequest, baseUrl: URL) =>
     listCache(new ListRequest({ request, baseUrl }))
 
   return { list, register, registerEmbellisher } as const
@@ -149,6 +158,6 @@ ${this.sizeFormatted}  ⬆️ ${this.seeds}`,
 export interface Embellisher {
   readonly transform: (
     streams: ReadonlyArray<SourceStream>,
-    baseUrl: string,
+    baseUrl: URL,
   ) => Effect.Effect<ReadonlyArray<SourceStream>>
 }

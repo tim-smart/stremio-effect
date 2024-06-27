@@ -18,16 +18,16 @@
     "typescript": "^5.5.2"
   },
   "dependencies": {
-    "@effect/opentelemetry": "^0.34.26",
-    "@effect/platform": "^0.58.10",
-    "@effect/platform-bun": "^0.38.9",
-    "@effect/platform-node": "^0.53.9",
-    "@effect/schema": "^0.68.10",
+    "@effect/opentelemetry": "^0.34.27",
+    "@effect/platform": "^0.58.12",
+    "@effect/platform-bun": "^0.38.11",
+    "@effect/platform-node": "^0.53.11",
+    "@effect/schema": "^0.68.11",
     "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "cheerio": "^1.0.0-rc.12",
-    "effect": "^3.4.3",
+    "effect": "^3.4.4",
     "stremio-addon-sdk": "^1.6.10"
   },
   "trustedDependencies": [

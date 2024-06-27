@@ -81,16 +81,15 @@ export const RealDebridLive = Effect.gen(function* () {
     infoHash: string
     file: string
   }> {}
-  const resolveHash = (request: ResolveRequest) =>
-    addMagnet(magnetFromHash(request.infoHash)).pipe(
-      Effect.tap(_ => selectFiles(_.id, [request.file])),
-      Effect.andThen(_ => getTorrentInfo(_.id)),
-      Effect.andThen(_ => unrestrictLink(_.links[0])),
-    )
   const resolve = yield* cacheWithSpan({
     capacity: 1024,
     timeToLive: "1 hour",
-    lookup: resolveHash,
+    lookup: (request: ResolveRequest) =>
+      addMagnet(magnetFromHash(request.infoHash)).pipe(
+        Effect.tap(_ => selectFiles(_.id, [request.file])),
+        Effect.andThen(_ => getTorrentInfo(_.id)),
+        Effect.andThen(info => unrestrictLink(info.links[0])),
+      ),
   })
 
   yield* sources.registerEmbellisher({
@@ -110,7 +109,10 @@ export const RealDebridLive = Effect.gen(function* () {
               )[0]
               return new SourceStream({
                 ...stream,
-                url: `${baseUrl}/real-debrid/${stream.infoHash}/${file}`,
+                url: new URL(
+                  `/real-debrid/${stream.infoHash}/${file}`,
+                  baseUrl,
+                ).toString(),
                 source: `${stream.source} [RD]`,
               })
             }
@@ -143,9 +145,9 @@ export const RealDebridLive = Effect.gen(function* () {
         HttpServerResponse.setHeader("Location", url.download),
       )
     }).pipe(
-      Effect.catchTags({
-        ParseError: () => HttpServerResponse.empty({ status: 400 }),
-      }),
+      Effect.catchTag("ParseError", () =>
+        HttpServerResponse.empty({ status: 404 }),
+      ),
       Effect.annotateLogs({
         service: "RealDebrid",
         method: "http",

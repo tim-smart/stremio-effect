@@ -1,8 +1,9 @@
-import { Config, Context, Data, Effect, Layer } from "effect"
+import { Config, Context, Data, Effect, Layer, Option } from "effect"
 import {
   HttpMiddleware,
   HttpRouter,
   HttpServer,
+  HttpServerRequest,
   HttpServerResponse,
 } from "@effect/platform"
 import * as Stremio from "stremio-addon-sdk"
@@ -43,7 +44,10 @@ export class StremioRouter extends HttpRouter.Tag(
 export const layerAddon = Effect.gen(function* () {
   const sources = yield* Sources
   const manifest = yield* StremioManifest
-  const baseUrl = yield* Config.string("BASE_URL")
+  const baseUrl = yield* Config.string("BASE_URL").pipe(
+    Config.map(url => new URL(url)),
+    Config.option,
+  )
 
   return (yield* StremioRouter.router).pipe(
     HttpRouter.get("/health", HttpServerResponse.text("OK")),
@@ -73,7 +77,17 @@ export const layerAddon = Effect.gen(function* () {
           }
         }),
         Effect.tap(request => Effect.log("StreamRequest", request)),
-        Effect.flatMap(request => sources.list(request, baseUrl)),
+        Effect.bindTo("streamRequest"),
+        Effect.bind("request", () => HttpServerRequest.HttpServerRequest),
+        Effect.let("baseUrl", ({ request }) =>
+          baseUrl.pipe(
+            Option.orElse(() => HttpServerRequest.toURL(request)),
+            Option.getOrElse(() => new URL("http://localhost:8000")),
+          ),
+        ),
+        Effect.flatMap(({ streamRequest, baseUrl }) =>
+          sources.list(streamRequest, baseUrl),
+        ),
         Effect.map(streams =>
           HttpServerResponse.unsafeJson({
             streams: streams.map(_ => _.asStremio),
