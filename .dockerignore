@@ -1,0 +1,5 @@
+.env
+.direnv/
+node_modules/
+*.tsbuildinfo
+data/

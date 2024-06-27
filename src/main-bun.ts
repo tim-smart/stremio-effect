@@ -8,10 +8,10 @@ import { AllSourcesDebrid } from "./Sources/All.js"
 const HttpLive = Stremio.layerAddon.pipe(
   Layer.provide(
     Stremio.StremioManifest.layer({
-      id: "co.timsmart.stremio.effect",
-      name: "Effect test",
+      id: "co.timsmart.stremio.sources",
+      name: "Tim's Stremio Sources",
       version: "0.0.1",
-      description: "A test addon using Effect",
+      description: "Stream results from various sources",
       catalogs: [],
       resources: ["stream"],
       types: ["movie", "tv", "series"],

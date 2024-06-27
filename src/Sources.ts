@@ -10,7 +10,7 @@ import {
   pipe,
   Record,
 } from "effect"
-import * as Stremio from "stremio-addon-sdk"
+import type * as Stremio from "stremio-addon-sdk"
 import { StreamRequest } from "./Stremio.js"
 import { bytesToSize, cacheWithSpan } from "./Utils.js"
 

@@ -1,4 +1,4 @@
-import { Config, Context, Data, Effect, Layer, Option } from "effect"
+import { Config, Context, Data, Effect, Layer, Option, Redacted } from "effect"
 import {
   HttpMiddleware,
   HttpRouter,
@@ -6,8 +6,9 @@ import {
   HttpServerRequest,
   HttpServerResponse,
 } from "@effect/platform"
-import * as Stremio from "stremio-addon-sdk"
+import type * as Stremio from "stremio-addon-sdk"
 import { Sources } from "./Sources.js"
+import { configProviderNested } from "./Utils.js"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest
@@ -44,13 +45,13 @@ export class StremioRouter extends HttpRouter.Tag(
 export const layerAddon = Effect.gen(function* () {
   const sources = yield* Sources
   const manifest = yield* StremioManifest
-  const baseUrl = yield* Config.string("BASE_URL").pipe(
+  const baseUrl = yield* Config.string("baseUrl").pipe(
     Config.map(url => new URL(url)),
     Config.option,
   )
+  const token = yield* Config.redacted("token")
 
-  return (yield* StremioRouter.router).pipe(
-    HttpRouter.get("/health", HttpServerResponse.text("OK")),
+  const apiRouter = (yield* StremioRouter.router).pipe(
     HttpRouter.get("/manifest.json", HttpServerResponse.unsafeJson(manifest)),
     HttpRouter.get(
       "/stream/:type/:id.json",
@@ -95,11 +96,17 @@ export const layerAddon = Effect.gen(function* () {
         ),
       ),
     ),
+  )
+
+  return HttpRouter.empty.pipe(
+    HttpRouter.get("/health", HttpServerResponse.text("OK")),
+    HttpRouter.mount(`/${Redacted.value(token)}`, apiRouter),
     HttpMiddleware.cors(),
     HttpServer.serve(HttpMiddleware.logger),
     HttpServer.withLogAddress,
   )
 }).pipe(
+  Effect.withConfigProvider(configProviderNested("addon")),
   Layer.unwrapEffect,
   Layer.annotateLogs({ service: "Stremio" }),
   Layer.provide(Sources.Live),

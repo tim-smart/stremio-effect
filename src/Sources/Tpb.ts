@@ -10,7 +10,7 @@ import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { StreamRequest } from "../Stremio.js"
 import { ImdbMovieQuery, ImdbVideoQuery } from "../Domain/VideoQuery.js"
-import { Cinemeta } from "src/Cinemeta.js"
+import { Cinemeta } from "../Cinemeta.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
