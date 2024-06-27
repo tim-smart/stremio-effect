@@ -147,7 +147,7 @@ export class SourceStream extends Data.Class<{
       infoHash: this.infoHash,
       title: `${this.quality}
 ${this.sizeFormatted}  ⬆️ ${this.seeds}`,
-      name: this.source,
+      name: this.url ? `${this.source}+` : this.source,
       behaviorHints: {
         group: `effect-${this.quality}`,
       },
