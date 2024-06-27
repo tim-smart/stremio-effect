@@ -84,6 +84,10 @@ export const layerAddon = Effect.gen(function* () {
           baseUrl.pipe(
             Option.orElse(() => HttpServerRequest.toURL(request)),
             Option.getOrElse(() => new URL("http://localhost:8000")),
+            url => {
+              url.pathname = Redacted.value(token)
+              return url
+            },
           ),
         ),
         Effect.flatMap(({ streamRequest, baseUrl }) =>

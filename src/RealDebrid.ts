@@ -111,7 +111,7 @@ export const RealDebridLive = Effect.gen(function* () {
               return new SourceStream({
                 ...stream,
                 url: new URL(
-                  `/real-debrid/${stream.infoHash}/${file}`,
+                  `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file}`,
                   baseUrl,
                 ).toString(),
               })
