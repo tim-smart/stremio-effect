@@ -8,7 +8,7 @@ import {
   Layer,
   Redacted,
 } from "effect"
-import { Sources, SourceStream } from "./Sources.js"
+import { Sources } from "./Sources.js"
 import {
   HttpClient,
   HttpClientRequest,
@@ -19,6 +19,7 @@ import {
 import { Schema } from "@effect/schema"
 import { cacheWithSpan, magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
+import { SourceStream } from "./Domain/SourceStream.js"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources

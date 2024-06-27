@@ -5,12 +5,13 @@ import {
 } from "@effect/platform"
 import { Array, Effect, identity, Layer } from "effect"
 import * as S from "@effect/schema/Schema"
-import { Sources, SourceStream } from "../Sources.js"
+import { Sources } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { StreamRequest } from "../Stremio.js"
 import { ImdbMovieQuery, ImdbVideoQuery } from "../Domain/VideoQuery.js"
 import { Cinemeta } from "../Cinemeta.js"
+import { SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources

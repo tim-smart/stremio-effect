@@ -5,7 +5,7 @@ import {
 } from "@effect/platform"
 import { Array, Effect, flow, identity, Layer, pipe } from "effect"
 import * as Cheerio from "cheerio"
-import { Sources, SourceStream } from "../Sources.js"
+import { Sources } from "../Sources.js"
 import {
   cacheWithSpan,
   infoHashFromMagnet,
@@ -14,6 +14,7 @@ import {
 import { StreamRequest } from "../Stremio.js"
 import { Cinemeta } from "../Cinemeta.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
+import { SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(

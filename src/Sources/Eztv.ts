@@ -1,11 +1,12 @@
-import * as S from "@effect/schema/Schema"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import * as S from "@effect/schema/Schema"
 import { Chunk, Data, Effect, Layer, Option, Stream } from "effect"
-import { Sources, SourceStream } from "../Sources.js"
+import { SourceStream } from "../Domain/SourceStream.js"
+import { Sources } from "../Sources.js"
 import { StreamRequest } from "../Stremio.js"
 import { cacheWithSpan, qualityFromTitle } from "../Utils.js"
 
