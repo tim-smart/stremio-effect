@@ -69,8 +69,10 @@ export const cacheWithSpan = <K, A, E, R>(options: {
   readonly timeToLive: Duration.DurationInput
   readonly lookup: Cache.Lookup<K, A, E, R>
 }) =>
-  Cache.make({
-    ...options,
+  Cache.makeWith({
+    capacity: options.capacity,
+    timeToLive: exit =>
+      exit._tag === "Success" ? options.timeToLive : "5 minutes",
     lookup: (req: SpanRequest<K>) =>
       options
         .lookup(req.request)

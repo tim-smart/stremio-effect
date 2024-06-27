@@ -53,8 +53,8 @@ const make = Effect.gen(function* () {
   const listCache = yield* cacheWithSpan({
     lookup: (request: ListRequest) =>
       listUncached(request.request, request.baseUrl),
-    capacity: 1024,
-    timeToLive: "1 hour",
+    capacity: 4096,
+    timeToLive: "12 hours",
   })
   const list = (request: StreamRequest, baseUrl: URL) =>
     listCache(new ListRequest({ request, baseUrl }))

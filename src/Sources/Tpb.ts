@@ -28,7 +28,7 @@ export const SourceTpbLive = Effect.gen(function* () {
         SearchResult.decodeResponse,
         Effect.map(results => (results[0].id === "0" ? [] : results)),
       ),
-    capacity: 1024,
+    capacity: 4096,
     timeToLive: "12 hours",
   })
 

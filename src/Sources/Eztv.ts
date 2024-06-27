@@ -31,7 +31,7 @@ export const SourceEztvLive = Effect.gen(function* () {
         client,
         GetTorrents.decodeResponse,
       ),
-    capacity: 1024,
+    capacity: 4096,
     timeToLive: "12 hours",
   })
 

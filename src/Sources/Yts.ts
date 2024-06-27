@@ -3,29 +3,33 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Effect, Layer } from "effect"
+import { Duration, Effect, Layer } from "effect"
 import { Sources } from "../Sources.js"
 import { StreamRequest } from "../Stremio.js"
 import * as S from "@effect/schema/Schema"
-import { magnetFromHash } from "../Utils.js"
+import { cacheWithSpan, magnetFromHash } from "../Utils.js"
 import { SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
   const client = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.filterStatusOk,
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl("https://yts.mx/api/v2"),
     ),
   )
 
-  const details = (imdbId: string) =>
-    HttpClientRequest.get("/movie_details.json").pipe(
-      HttpClientRequest.setUrlParam("imdb_id", imdbId),
-      client,
-      MovieDetails.decodeResponse,
-      Effect.map(_ => _.data.movie),
-    )
-
+  const details = yield* cacheWithSpan({
+    lookup: (imdbId: string) =>
+      HttpClientRequest.get("/movie_details.json").pipe(
+        HttpClientRequest.setUrlParam("imdb_id", imdbId),
+        client,
+        MovieDetails.decodeResponse,
+        Effect.map(_ => _.data.movie),
+      ),
+    capacity: 4096,
+    timeToLive: Duration.days(10),
+  })
   yield* sources.register({
     list: StreamRequest.$match({
       Channel: () => Effect.succeed([]),
