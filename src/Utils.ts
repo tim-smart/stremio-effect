@@ -52,9 +52,6 @@ export const configProviderNested = (prefix: string) =>
     ConfigProvider.constantCase,
   )
 
-export const formatEpisode = (season: number, episode: number) =>
-  `S${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}`
-
 class SpanRequest<K> extends Data.Class<{
   readonly span: Option.Option<Tracer.AnySpan>
   readonly request: K

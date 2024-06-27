@@ -1,17 +1,26 @@
-import { Array, Context, Effect, flow, Layer } from "effect"
-import { cacheWithSpan, configProviderNested, formatEpisode } from "./Utils.js"
+import { Array, Context, Data, Effect, Layer, Option } from "effect"
+import { cacheWithSpan } from "./Utils.js"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
-import { Tvdb } from "./Tvdb.js"
+import { EpisodeData, Tvdb } from "./Tvdb.js"
+import {
+  AbsoluteEpisodeQuery,
+  EpisodeQuery,
+  ImdbSeriesQuery,
+  MovieQuery,
+  SeasonEpisodeQuery,
+  SeriesQuery,
+} from "./Domain/VideoQuery.js"
+import { NonEmptyReadonlyArray } from "effect/Array"
 
 const make = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta")),
+      HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
     ),
     HttpClient.filterStatusOk,
   )
@@ -44,16 +53,32 @@ const make = Effect.gen(function* () {
   const lookupEpisode = (imdbID: string, season: number, episode: number) =>
     Effect.gen(function* () {
       const series = yield* lookupSeries(imdbID)
+      if (!series.genres.includes("Animation")) {
+        return new GeneralEpisodeResult({
+          series,
+          season,
+          episode,
+        })
+      }
       const info = yield* series.findEpisode(season, episode).pipe(
         Effect.flatMap(_ => Effect.fromNullable(_.tvdb_id)),
         Effect.flatMap(tvdb.lookupEpisode),
         Effect.option,
       )
-      return { series, episode: info } as const
-    })
+      return new AnimationEpisodeResult({
+        series,
+        season,
+        episode,
+        info,
+      })
+    }).pipe(
+      Effect.withSpan("Cinemeta.lookupEpisode", {
+        attributes: { imdbID, season, episode },
+      }),
+    )
 
   return { lookupMovie, lookupSeries, lookupEpisode } as const
-}).pipe(Effect.withConfigProvider(configProviderNested("omdb")))
+})
 
 export class Cinemeta extends Context.Tag("Cinemeta")<
   Cinemeta,
@@ -88,22 +113,20 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   id: S.String,
   imdb_id: S.String,
   type: S.String,
-  poster: S.String,
-  logo: S.String,
   background: S.String,
   moviedb_id: S.Number,
   name: S.String,
   description: S.String,
   genres: S.Array(S.String),
   releaseInfo: S.String,
-  runtime: S.String,
-  cast: S.Array(S.String),
-  director: S.Array(S.String),
-  language: S.String,
   country: S.String,
   imdbRating: S.String,
   slug: S.String,
-}) {}
+}) {
+  get query() {
+    return new MovieQuery({ title: this.name })
+  }
+}
 
 export class Movie extends S.Class<Movie>("Movie")({
   meta: MovieMeta,
@@ -112,28 +135,14 @@ export class Movie extends S.Class<Movie>("Movie")({
 }
 
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
-  awards: S.String,
-  cast: S.Array(S.String),
   country: S.String,
   description: S.String,
-  director: S.Union(S.Array(S.Any), S.Null),
-  dvdRelease: S.optional(S.Null),
-  genre: S.optional(S.Union(S.Array(S.String), S.Null)),
   imdbRating: S.String,
   imdb_id: S.String,
   name: S.String,
-  popularity: S.optional(S.Union(S.Number, S.Null)),
-  poster: S.String,
-  released: S.optional(S.Union(S.Null, S.String)),
-  runtime: S.optional(S.Union(S.Null, S.String)),
   status: S.String,
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
   type: S.String,
-  writer: S.optional(S.Union(S.Array(S.String), S.Null)),
-  year: S.optional(S.Union(S.Null, S.String)),
-  background: S.String,
-  logo: S.String,
-  popularities: S.optional(S.Union(S.Record(S.String, S.Number), S.Null)),
   moviedb_id: S.Number,
   slug: S.String,
   id: S.String,
@@ -141,7 +150,6 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   releaseInfo: S.String,
   videos: S.Array(Video),
   trailerStreams: S.optional(S.Union(S.Array(TrailerStream), S.Null)),
-  language: S.optional(S.Union(S.Null, S.String)),
 }) {
   findEpisode(season: number, episode: number) {
     return Array.findFirst(
@@ -149,18 +157,23 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
       _ => _.season === season && _.episode === episode,
     )
   }
-
-  queries(season: number, episode: number): ReadonlyArray<string> {
-    const episodeIndex = this.videos
+  absoluteEpisodeQuery(
+    season: number,
+    episode: number,
+  ): Option.Option<AbsoluteEpisodeQuery> {
+    const index = this.videos
       .filter(_ => _.season > 0)
       .findIndex(_ => _.season === season && _.episode === episode)
-    if (episodeIndex === -1) {
-      return [`${this.name} ${formatEpisode(season, episode)}`]
-    }
-    const episodeNumber = episodeIndex + 1
+    return index > 0
+      ? Option.some(new AbsoluteEpisodeQuery({ number: index + 1 }))
+      : Option.none()
+  }
+  queries(season: number, episode: number): ReadonlyArray<SeriesQuery> {
     return [
-      `${this.name} ${formatEpisode(season, episode)}`,
-      `${this.name} ${episodeNumber}`,
+      new SeriesQuery({
+        title: this.name,
+        episode: new SeasonEpisodeQuery({ season, episode }),
+      }),
     ]
   }
 }
@@ -170,3 +183,99 @@ export class Series extends S.Class<Series>("Series")({
 }) {
   static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
 }
+
+// episode result
+
+export class AnimationEpisodeResult extends Data.TaggedClass(
+  "AnimationEpisodeResult",
+)<{
+  series: SeriesMeta
+  season: number
+  episode: number
+  info: Option.Option<EpisodeData>
+}> {
+  get absoluteEpisodeQuery() {
+    return this.info.pipe(
+      Option.map(
+        info => new AbsoluteEpisodeQuery({ number: info.absoluteNumber }),
+      ),
+      Option.orElse(() =>
+        this.series.absoluteEpisodeQuery(this.season, this.episode),
+      ),
+    )
+  }
+  get episodeQueries(): NonEmptyReadonlyArray<EpisodeQuery> {
+    const season = new SeasonEpisodeQuery({
+      season: this.season,
+      episode: this.episode,
+    })
+    return Option.match(this.absoluteEpisodeQuery, {
+      onSome: absolute => [season, absolute],
+      onNone: () => [season],
+    })
+  }
+  get absoluteQuery() {
+    return new SeriesQuery({
+      title: this.series.name,
+      episode: Option.getOrElse(
+        this.absoluteEpisodeQuery,
+        () =>
+          new SeasonEpisodeQuery({
+            season: this.season,
+            episode: this.episode,
+          }),
+      ),
+    })
+  }
+  get queries() {
+    return this.episodeQueries.map(
+      episode =>
+        new SeriesQuery({
+          title: this.series.name,
+          episode,
+        }),
+    )
+  }
+  get imdbQuery() {
+    return new ImdbSeriesQuery({
+      imdbId: this.series.imdb_id,
+      episodeQueries: this.episodeQueries,
+    })
+  }
+}
+
+export class GeneralEpisodeResult extends Data.TaggedClass(
+  "GeneralEpisodeResult",
+)<{
+  series: SeriesMeta
+  season: number
+  episode: number
+}> {
+  get queries() {
+    return [
+      new SeriesQuery({
+        title: this.series.name,
+        episode: new SeasonEpisodeQuery({
+          season: this.season,
+          episode: this.episode,
+        }),
+      }),
+    ]
+  }
+  get episodeQueries() {
+    return Array.of(
+      new SeasonEpisodeQuery({
+        season: this.season,
+        episode: this.episode,
+      }),
+    )
+  }
+  get imdbQuery() {
+    return new ImdbSeriesQuery({
+      imdbId: this.series.imdb_id,
+      episodeQueries: this.episodeQueries,
+    })
+  }
+}
+
+export type EpisodeResult = AnimationEpisodeResult | GeneralEpisodeResult

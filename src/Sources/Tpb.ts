@@ -3,12 +3,14 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, Layer, pipe } from "effect"
+import { Array, Effect, identity, Layer } from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources, SourceStream } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { StreamRequest } from "../Stremio.js"
+import { ImdbMovieQuery, ImdbVideoQuery } from "../Domain/VideoQuery.js"
+import { Cinemeta } from "src/Cinemeta.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -17,9 +19,9 @@ export const SourceTpbLive = Effect.gen(function* () {
   )
 
   const searchCache = yield* cacheWithSpan({
-    lookup: (query: string) =>
+    lookup: (query: ImdbVideoQuery) =>
       HttpClientRequest.get("/q.php", {
-        urlParams: { q: query },
+        urlParams: { q: query.asQuery },
       }).pipe(
         client,
         SearchResult.decodeResponse,
@@ -29,30 +31,47 @@ export const SourceTpbLive = Effect.gen(function* () {
     timeToLive: "12 hours",
   })
 
-  const search = (query: string) =>
-    pipe(
-      searchCache(query),
-      Effect.tapErrorCause(Effect.logDebug),
-      Effect.orElseSucceed(() => [] as SearchResult[]),
-      Effect.withSpan("Source.Tpb.search", { attributes: { query } }),
+  const search = (query: ImdbVideoQuery) => {
+    const matcher = query.titleMatcher
+    return searchCache(query).pipe(
+      matcher._tag === "Some"
+        ? Effect.map(Array.filter(_ => matcher.value(_.name)))
+        : identity,
+      Effect.withSpan("Source.Tpb.Search", {
+        attributes: { query: query.asQuery },
+      }),
     )
+  }
 
+  const cinemeta = yield* Cinemeta
   yield* sources.register({
     list: StreamRequest.$match({
       Channel: () => Effect.succeed([]),
       Movie: ({ imdbId }) =>
-        search(imdbId).pipe(Effect.map(Array.map(_ => _.asStream))),
-      Series: ({ imdbId, season, episode }) => {
-        const episodeQuery = `S${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}`
-        return search(imdbId).pipe(
-          Effect.map(Array.filter(_ => _.name.includes(episodeQuery))),
+        search(new ImdbMovieQuery({ imdbId })).pipe(
           Effect.map(Array.map(_ => _.asStream)),
-        )
-      },
+          Effect.tapErrorCause(Effect.logDebug),
+          Effect.orElseSucceed(() => []),
+          Effect.withSpan("Source.Tpb.Movie", { attributes: { imdbId } }),
+        ),
+      Series: ({ imdbId, season, episode }) =>
+        cinemeta.lookupEpisode(imdbId, season, episode).pipe(
+          Effect.flatMap(result => search(result.imdbQuery)),
+          Effect.map(Array.map(_ => _.asStream)),
+          Effect.tapErrorCause(Effect.logDebug),
+          Effect.orElseSucceed(() => []),
+          Effect.withSpan("Source.Tpb.Series", {
+            attributes: { imdbId, season, episode },
+          }),
+        ),
       Tv: () => Effect.succeed([]),
     }),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
+}).pipe(
+  Layer.scopedDiscard,
+  Layer.provide(Sources.Live),
+  Layer.provide(Cinemeta.Live),
+)
 
 // schemas
 

@@ -38,7 +38,7 @@ export const RealDebridLive = Effect.gen(function* () {
         type: Schema.Literal("premium", "free"),
       }),
     ),
-    Effect.cachedWithTTL("5 minutes"),
+    Effect.cachedWithTTL("1 hour"),
   )
   const userIsPremium = user.pipe(
     Effect.map(_ => _.type === "premium"),

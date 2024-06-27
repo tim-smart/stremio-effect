@@ -3,28 +3,17 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import {
-  Array,
-  Data,
-  Effect,
-  flow,
-  identity,
-  Layer,
-  Option,
-  pipe,
-} from "effect"
+import { Array, Effect, flow, identity, Layer, pipe } from "effect"
 import * as Cheerio from "cheerio"
 import { Sources, SourceStream } from "../Sources.js"
 import {
   cacheWithSpan,
-  formatEpisode,
   infoHashFromMagnet,
   qualityFromTitle,
 } from "../Utils.js"
 import { StreamRequest } from "../Stremio.js"
 import { Cinemeta } from "../Cinemeta.js"
-
-type Category = "tv" | "anime" | "movies"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 
 export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -71,30 +60,24 @@ export const SourceRargbLive = Effect.gen(function* () {
     return streams
   }
 
-  class SearchRequest extends Data.Class<{
-    readonly query: string
-    readonly episodeQuery?: string
-    readonly categories: ReadonlyArray<Category>
-  }> {}
-
   const searchCache = yield* cacheWithSpan({
-    lookup: (request: SearchRequest) =>
+    lookup: (request: VideoQuery) =>
       HttpClientRequest.get("/search/").pipe(
         HttpClientRequest.setUrlParams({
-          search: request.query,
-          "category[]": request.categories,
+          search: request.asQuery,
+          "category[]":
+            request._tag === "MovieQuery" ? ["movies"] : ["tv", "anime"],
         }),
         client,
         HttpClientResponse.text,
         Effect.map(parseResults),
-        Effect.andThen(results =>
-          Effect.allSuccesses(
+        Effect.andThen(results => {
+          const matcher = request.titleMatcher
+          return Effect.allSuccesses(
             pipe(
               results,
-              request.episodeQuery
-                ? Array.filter(
-                    _ => !_.title.includes(`${request.episodeQuery}-`),
-                  )
+              matcher._tag === "Some"
+                ? Array.filter(_ => matcher.value(_.title))
                 : identity,
               Array.map(result =>
                 magnetLink(result.url).pipe(
@@ -103,8 +86,8 @@ export const SourceRargbLive = Effect.gen(function* () {
               ),
             ),
             { concurrency: 15 },
-          ),
-        ),
+          )
+        }),
         Effect.map(
           Array.map(
             result =>
@@ -133,14 +116,7 @@ export const SourceRargbLive = Effect.gen(function* () {
       Movie: ({ imdbId }) =>
         pipe(
           cinemeta.lookupMovie(imdbId),
-          Effect.andThen(result =>
-            searchCache(
-              new SearchRequest({
-                query: result.name,
-                categories: ["movies"],
-              }),
-            ),
-          ),
+          Effect.andThen(result => searchCache(result.query)),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => [] as SourceStream[]),
           Effect.withSpan("Source.Rarbg.Movie", { attributes: { imdbId } }),
@@ -153,21 +129,9 @@ export const SourceRargbLive = Effect.gen(function* () {
         pipe(
           cinemeta.lookupEpisode(imdbId, season, episode),
           Effect.andThen(result =>
-            Effect.forEach(
-              Option.match(result.episode, {
-                onNone: () => result.series.queries(season, episode),
-                onSome: _ => _.queries(result.series.name),
-              }),
-              query =>
-                searchCache(
-                  new SearchRequest({
-                    query,
-                    episodeQuery: formatEpisode(season, episode),
-                    categories: ["tv", "anime"],
-                  }),
-                ),
-              { concurrency: "unbounded" },
-            ),
+            Effect.forEach(result.queries, searchCache, {
+              concurrency: "unbounded",
+            }),
           ),
           Effect.map(Array.flatten),
           Effect.tapErrorCause(Effect.logDebug),
