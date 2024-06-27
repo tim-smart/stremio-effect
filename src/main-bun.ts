@@ -9,7 +9,7 @@ const HttpLive = Stremio.layerAddon.pipe(
   Layer.provide(
     Stremio.StremioManifest.layer({
       id: "co.timsmart.stremio.sources",
-      name: "Tim's Stremio Sources",
+      name: "Stremio Sources",
       version: "0.0.1",
       description: "Stream results from various sources",
       catalogs: [],

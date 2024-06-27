@@ -1,18 +1,7 @@
-import {
-  Array,
-  Context,
-  Data,
-  Effect,
-  Equal,
-  Hash,
-  Layer,
-  Order,
-  pipe,
-  Record,
-} from "effect"
-import type * as Stremio from "stremio-addon-sdk"
+import { Context, Data, Effect, Equal, Hash, Layer } from "effect"
 import { StreamRequest } from "./Stremio.js"
-import { bytesToSize, cacheWithSpan } from "./Utils.js"
+import { cacheWithSpan } from "./Utils.js"
+import { SourceStream } from "./Domain/SourceStream.js"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
@@ -80,79 +69,12 @@ export class Sources extends Context.Tag("stremio/Sources")<
   static Live = Layer.effect(Sources, make)
 }
 
-// quality order
-
-const qualityPriorities = [
-  ["3D", 0],
-  ["2160p", 1],
-  ["1080p", 2],
-  ["720p", 3],
-  ["480p", 4],
-] as const
-const qualityPriority = (quality: string) =>
-  qualityPriorities.find(([q]) => quality.startsWith(q))?.[1] ??
-  qualityPriorities.length
-const qualityOrder = Order.make<string>((a, b) => {
-  const aPriority = qualityPriority(a)
-  const bPriority = qualityPriority(b)
-  return aPriority < bPriority ? -1 : aPriority > bPriority ? 1 : 0
-})
-
 // domain
 
 export interface Source {
   readonly list: (
     request: StreamRequest,
   ) => Effect.Effect<ReadonlyArray<SourceStream>>
-}
-
-export class SourceStream extends Data.Class<{
-  source: string
-  infoHash: string
-  magnetUri: string
-  quality: string
-  seeds: number
-  peers: number
-  sizeBytes?: number
-  sizeDisplay?: string
-  url?: string
-}> {
-  static Order = Order.struct({
-    quality: qualityOrder,
-    seeds: Order.reverse(Order.number),
-  })
-
-  static sort = (streams: ReadonlyArray<SourceStream>) =>
-    pipe(
-      streams,
-      Array.groupBy(_ => _.quality),
-      Record.map(Array.take(3)),
-      Record.values,
-      Array.flatten,
-      Array.sort(this.Order),
-    )
-
-  get sizeFormatted() {
-    if (this.sizeBytes) {
-      return bytesToSize(this.sizeBytes)
-    } else if (this.sizeDisplay) {
-      return this.sizeDisplay
-    }
-    return "0B"
-  }
-
-  get asStremio(): Stremio.Stream {
-    return {
-      url: this.url,
-      infoHash: this.infoHash,
-      title: `${this.quality}
-${this.sizeFormatted}  ⬆️ ${this.seeds}`,
-      name: this.url ? `${this.source}+` : this.source,
-      behaviorHints: {
-        group: `effect-${this.quality}`,
-      },
-    }
-  }
 }
 
 export interface Embellisher {
