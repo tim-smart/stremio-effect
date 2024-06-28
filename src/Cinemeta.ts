@@ -120,7 +120,6 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   genres: S.Array(S.String),
   releaseInfo: S.String,
   country: S.String,
-  imdbRating: S.String,
   slug: S.String,
 }) {
   get query() {
@@ -137,7 +136,6 @@ export class Movie extends S.Class<Movie>("Movie")({
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   country: S.String,
   description: S.String,
-  imdbRating: S.String,
   imdb_id: S.String,
   name: S.String,
   status: S.String,
@@ -149,7 +147,6 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   genres: S.Array(S.String),
   releaseInfo: S.String,
   videos: S.Array(Video),
-  trailerStreams: S.optional(S.Union(S.Array(TrailerStream), S.Null)),
 }) {
   findEpisode(season: number, episode: number) {
     return Array.findFirst(
