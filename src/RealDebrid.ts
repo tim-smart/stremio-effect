@@ -135,6 +135,7 @@ export const RealDebridLive = Effect.gen(function* () {
         new AvailabilityRequest({ infoHash: stream.infoHash }),
         AvailabilityResolver,
       ).pipe(
+        Effect.withRequestCaching(true),
         Effect.map(
           Option.match({
             onNone: () => stream,
