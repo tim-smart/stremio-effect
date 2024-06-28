@@ -101,6 +101,7 @@ export const SourceRargbLive = Effect.gen(function* () {
     searchCache(request).pipe(
       Effect.map(Stream.fromIterable),
       Stream.unwrap,
+      Stream.take(10),
       Stream.flatMap(
         result =>
           magnetLink(result.url).pipe(
@@ -120,7 +121,6 @@ export const SourceRargbLive = Effect.gen(function* () {
           ),
         { concurrency: "unbounded" },
       ),
-      Stream.take(10),
     )
 
   const cinemeta = yield* Cinemeta
