@@ -33,9 +33,6 @@ const make = Effect.gen(function* () {
     ),
     HttpClient.filterStatusOk,
     HttpClient.transformResponse(
-      Effect.tapErrorTag("ResponseError", _ => Console.log(_.response)),
-    ),
-    HttpClient.transformResponse(
       Effect.retry({
         while: err =>
           err._tag === "ResponseError" &&
