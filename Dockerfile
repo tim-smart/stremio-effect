@@ -1,25 +1,23 @@
-FROM oven/bun:1 as base
-WORKDIR /usr/src/app
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN corepack pnpm install --frozen-lockfile
 
-# install dependencies into temp directory
-# this will cache them and speed up future builds
-FROM base AS install
-RUN mkdir -p /temp/dev
-COPY package.json bun.lockb /temp/dev/
-RUN cd /temp/dev && bun install --frozen-lockfile
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY . .
+COPY --from=deps /app/node_modules ./node_modules
+RUN corepack pnpm build 
+RUN corepack pnpm prune --prod
 
-# install with --production (exclude devDependencies)
-RUN mkdir -p /temp/prod
-COPY package.json bun.lockb /temp/prod/
-RUN cd /temp/prod && bun install --frozen-lockfile --production
 
-# copy production dependencies and source code into final image
-FROM base AS release
-COPY --from=install /temp/prod/node_modules node_modules
-COPY src /usr/src/app/src
-COPY package.json /usr/src/app/package.json
+FROM node:22-alpine AS runner
+WORKDIR /app
 
-# run the app
-USER bun
-EXPOSE 3000/tcp
-ENTRYPOINT [ "bun", "run", "src/main-bun.ts" ]
+ENV NODE_ENV production
+
+COPY package.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+
+CMD ["node", "--enable-source-maps", "dist/main.cjs"]

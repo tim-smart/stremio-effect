@@ -4,24 +4,27 @@ import {
   NodeRuntime,
 } from "@effect/platform-node"
 import * as Stremio from "./Stremio.js"
-import { Layer, Logger, LogLevel } from "effect"
+import { Config, Layer, Logger, LogLevel } from "effect"
 import { TracingLive } from "./Tracing.js"
 import { AllSourcesDebrid } from "./Sources/All.js"
 import { createServer } from "node:http"
-
 const StremioLive = Stremio.layerAddon.pipe(
   Layer.provide(
     Stremio.StremioManifest.layer({
-      id: "co.timsmart.stremio.effect",
-      name: "Effect test",
+      id: "co.timsmart.stremio.sources",
+      name: "Stremio Sources",
       version: "0.0.1",
-      description: "A test addon using Effect",
+      description: "Stream results from various sources",
       catalogs: [],
       resources: ["stream"],
       types: ["movie", "tv", "series"],
     }),
   ),
-  Layer.provide(NodeHttpServer.layer(createServer, { port: 8000 })),
+  Layer.provide(
+    NodeHttpServer.layerConfig(createServer, {
+      port: Config.integer("PORT").pipe(Config.withDefault(8000)),
+    }),
+  ),
   Layer.provide(AllSourcesDebrid),
   Layer.provide(NodeHttpClient.layerUndici),
 )
