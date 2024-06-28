@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Duration, Effect, Layer } from "effect"
+import { Duration, Effect, Layer, Stream } from "effect"
 import { Sources } from "../Sources.js"
 import { StreamRequest } from "../Stremio.js"
 import * as S from "@effect/schema/Schema"
@@ -32,7 +32,7 @@ export const SourceYtsLive = Effect.gen(function* () {
   })
   yield* sources.register({
     list: StreamRequest.$match({
-      Channel: () => Effect.succeed([]),
+      Channel: () => Stream.empty,
       Movie: ({ imdbId }) =>
         details(imdbId).pipe(
           Effect.map(_ => _.streams),
@@ -43,9 +43,11 @@ export const SourceYtsLive = Effect.gen(function* () {
             service: "Source.Yts",
             method: "list",
           }),
+          Effect.map(Stream.fromIterable),
+          Stream.unwrap,
         ),
-      Series: () => Effect.succeed([]),
-      Tv: () => Effect.succeed([]),
+      Series: () => Stream.empty,
+      Tv: () => Stream.empty,
     }),
   })
 }).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))

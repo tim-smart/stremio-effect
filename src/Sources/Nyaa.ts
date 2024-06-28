@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, flow, identity, Layer, pipe } from "effect"
+import { Array, Effect, flow, identity, Layer, pipe, Stream } from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
 import {
@@ -91,8 +91,8 @@ export const SourceNyaaLive = Effect.gen(function* () {
   const sources = yield* Sources
   yield* sources.register({
     list: StreamRequest.$match({
-      Channel: () => Effect.succeed([]),
-      Movie: () => Effect.succeed([]),
+      Channel: () => Stream.empty,
+      Movie: () => Stream.empty,
       Series: ({ imdbId, season, episode }) =>
         pipe(
           cinemeta.lookupEpisode(imdbId, season, episode),
@@ -113,8 +113,10 @@ export const SourceNyaaLive = Effect.gen(function* () {
             season,
             episode,
           }),
+          Effect.map(Stream.fromIterable),
+          Stream.unwrap,
         ),
-      Tv: () => Effect.succeed([]),
+      Tv: () => Stream.empty,
     }),
   })
 }).pipe(

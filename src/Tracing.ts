@@ -11,7 +11,20 @@ export const TracingLive = Layer.unwrapEffect(
       "stremio-effect",
     )
     if (apiKey._tag === "None") {
-      return Layer.empty
+      const endpoint = yield* Config.option(
+        Config.string("OTEL_EXPORTER_OTLP_ENDPOINT"),
+      )
+      if (endpoint._tag === "None") {
+        return Layer.empty
+      }
+      return NodeSdk.layer(() => ({
+        resource: {
+          serviceName: dataset,
+        },
+        spanProcessor: new BatchSpanProcessor(
+          new OTLPTraceExporter({ url: `${endpoint.value}/v1/traces` }),
+        ),
+      }))
     }
 
     const headers = {

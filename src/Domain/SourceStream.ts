@@ -1,4 +1,4 @@
-import { Array, Data, Order, pipe, Record } from "effect"
+import { Array, Data, Order, pipe } from "effect"
 import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize } from "../Utils.js"
 import * as Quality from "./Quality.js"
@@ -22,10 +22,10 @@ export class SourceStream extends Data.Class<{
   static sort = (streams: ReadonlyArray<SourceStream>) =>
     pipe(
       streams,
-      Array.groupBy(_ => _.quality),
-      Record.map(Array.take(3)),
-      Record.values,
-      Array.flatten,
+      // Array.groupBy(_ => _.quality),
+      // Record.map(Array.take(3)),
+      // Record.values,
+      // Array.flatten,
       Array.sort(this.Order),
     )
 

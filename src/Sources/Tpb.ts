@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, identity, Layer } from "effect"
+import { Array, Effect, identity, Layer, Stream } from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
@@ -47,13 +47,15 @@ export const SourceTpbLive = Effect.gen(function* () {
   const cinemeta = yield* Cinemeta
   yield* sources.register({
     list: StreamRequest.$match({
-      Channel: () => Effect.succeed([]),
+      Channel: () => Stream.empty,
       Movie: ({ imdbId }) =>
         search(new ImdbMovieQuery({ imdbId })).pipe(
           Effect.map(Array.map(_ => _.asStream)),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Tpb.Movie", { attributes: { imdbId } }),
+          Effect.map(Stream.fromIterable),
+          Stream.unwrap,
         ),
       Series: ({ imdbId, season, episode }) =>
         cinemeta.lookupEpisode(imdbId, season, episode).pipe(
@@ -64,8 +66,10 @@ export const SourceTpbLive = Effect.gen(function* () {
           Effect.withSpan("Source.Tpb.Series", {
             attributes: { imdbId, season, episode },
           }),
+          Effect.map(Stream.fromIterable),
+          Stream.unwrap,
         ),
-      Tv: () => Effect.succeed([]),
+      Tv: () => Stream.empty,
     }),
   })
 }).pipe(

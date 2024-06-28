@@ -52,28 +52,30 @@ export const SourceEztvLive = Effect.gen(function* () {
 
   yield* sources.register({
     list: StreamRequest.$match({
-      Channel: () => Effect.succeed([]),
+      Channel: () => Stream.empty,
       Series: ({ imdbId, season, episode }) =>
         stream(imdbId).pipe(
           Stream.filter(
             tor => tor.season === season && tor.episode === episode,
           ),
           Stream.map(tor => tor.asStream),
-          Stream.runCollect,
-          Effect.map(Chunk.toReadonlyArray),
-          Effect.tapErrorCause(Effect.logDebug),
-          Effect.orElseSucceed(() => []),
-          Effect.withSpan("Source.Eztv.list", {
+          Stream.catchAllCause(cause =>
+            Effect.logDebug(cause).pipe(
+              Effect.annotateLogs({
+                service: "Source.Eztv.Series",
+                imdbId,
+                season,
+                episode,
+              }),
+              Stream.drain,
+            ),
+          ),
+          Stream.withSpan("Source.Eztv.list", {
             attributes: { imdbId, season, episode },
           }),
-          Effect.annotateLogs({
-            service: "Source.Eztv",
-            method: "list",
-            imdbId,
-          }),
         ),
-      Movie: () => Effect.succeed([]),
-      Tv: () => Effect.succeed([]),
+      Movie: () => Stream.empty,
+      Tv: () => Stream.empty,
     }),
   })
 }).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))

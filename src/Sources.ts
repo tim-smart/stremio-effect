@@ -1,4 +1,15 @@
-import { Context, Data, Effect, Equal, Hash, Layer } from "effect"
+import {
+  Chunk,
+  Context,
+  Data,
+  Effect,
+  Equal,
+  GroupBy,
+  Hash,
+  Iterable,
+  Layer,
+  Stream,
+} from "effect"
 import { StreamRequest } from "./Stremio.js"
 import { cacheWithSpan } from "./Utils.js"
 import { SourceStream } from "./Domain/SourceStream.js"
@@ -24,20 +35,23 @@ const make = Effect.gen(function* () {
     )
 
   const listUncached = (request: StreamRequest, baseUrl: URL) =>
-    Effect.forEach(sources, source => source.list(request), {
-      concurrency: "unbounded",
-    }).pipe(
-      Effect.map(sources => SourceStream.sort(sources.flat())),
-      Effect.flatMap(streams =>
-        streams.length > 0
-          ? Effect.reduce(
-              embellishers.values(),
-              streams as ReadonlyArray<SourceStream>,
-              (streams, embellishers) =>
-                embellishers.transform(streams, baseUrl),
-            )
-          : Effect.succeed(streams),
+    Stream.fromIterable(sources).pipe(
+      Stream.flatMap(source => source.list(request), {
+        concurrency: sources.size,
+      }),
+      Stream.groupByKey(_ => _.quality),
+      GroupBy.evaluate((_, stream) => Stream.take(stream, 3)),
+      Stream.mapEffect(
+        stream =>
+          Effect.reduce(
+            embellishers.values(),
+            stream,
+            (streams, embellishers) => embellishers.transform(streams, baseUrl),
+          ),
+        { concurrency: "unbounded" },
       ),
+      Stream.runCollect,
+      Effect.map(chunk => SourceStream.sort(Chunk.toReadonlyArray(chunk))),
     )
   class ListRequest extends Data.Class<{
     readonly request: StreamRequest
@@ -72,14 +86,12 @@ export class Sources extends Context.Tag("stremio/Sources")<
 // domain
 
 export interface Source {
-  readonly list: (
-    request: StreamRequest,
-  ) => Effect.Effect<ReadonlyArray<SourceStream>>
+  readonly list: (request: StreamRequest) => Stream.Stream<SourceStream>
 }
 
 export interface Embellisher {
   readonly transform: (
-    streams: ReadonlyArray<SourceStream>,
+    stream: SourceStream,
     baseUrl: URL,
-  ) => Effect.Effect<ReadonlyArray<SourceStream>>
+  ) => Effect.Effect<SourceStream>
 }

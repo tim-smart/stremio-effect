@@ -3,7 +3,16 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, flow, identity, Layer, pipe } from "effect"
+import {
+  Array,
+  Duration,
+  Effect,
+  flow,
+  identity,
+  Layer,
+  pipe,
+  Stream,
+} from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
 import {
@@ -24,17 +33,21 @@ export const SourceRargbLive = Effect.gen(function* () {
     ),
   )
 
-  const magnetLink = (url: string) =>
-    HttpClientRequest.get(url).pipe(
-      client,
-      HttpClientResponse.text,
-      Effect.flatMap(html => {
-        const $ = Cheerio.load(html)
-        return Effect.fromNullable(
-          $("td.lista a[href^='magnet:']").attr("href"),
-        )
-      }),
-    )
+  const magnetLink = yield* cacheWithSpan({
+    lookup: (url: string) =>
+      HttpClientRequest.get(url).pipe(
+        client,
+        HttpClientResponse.text,
+        Effect.flatMap(html => {
+          const $ = Cheerio.load(html)
+          return Effect.fromNullable(
+            $("td.lista a[href^='magnet:']").attr("href"),
+          )
+        }),
+      ),
+    capacity: 4096,
+    timeToLive: Duration.infinity,
+  })
 
   const parseResults = (html: string) => {
     const $ = Cheerio.load(html)
@@ -71,83 +84,88 @@ export const SourceRargbLive = Effect.gen(function* () {
         }),
         client,
         HttpClientResponse.text,
-        Effect.map(parseResults),
-        Effect.andThen(results => {
+        Effect.map(html => {
+          let results = parseResults(html)
           const matcher = request.titleMatcher
-          return Effect.allSuccesses(
-            pipe(
-              Array.take(results, 10),
-              matcher._tag === "Some"
-                ? Array.filter(_ => matcher.value(_.title))
-                : identity,
-              Array.map(result =>
-                magnetLink(result.url).pipe(
-                  Effect.map(magnet => ({ ...result, magnet })),
-                ),
-              ),
-            ),
-            { concurrency: 10 },
-          )
+          return matcher._tag === "Some"
+            ? Array.filter(results, _ => matcher.value(_.title))
+            : results
         }),
-        Effect.map(
-          Array.map(
-            result =>
-              new SourceStream({
-                source: "Rarbg",
-                infoHash: infoHashFromMagnet(result.magnet),
-                magnetUri: result.magnet,
-                quality: qualityFromTitle(result.title),
-                seeds: result.seeds,
-                peers: result.peers,
-                sizeDisplay: result.size,
-              }),
-          ),
-        ),
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
       ),
     capacity: 4096,
     timeToLive: "12 hours",
   })
 
+  const searchStream = (request: VideoQuery) =>
+    searchCache(request).pipe(
+      Effect.map(Stream.fromIterable),
+      Stream.unwrap,
+      Stream.flatMap(
+        result =>
+          magnetLink(result.url).pipe(
+            Effect.map(
+              magnet =>
+                new SourceStream({
+                  source: "Rarbg",
+                  infoHash: infoHashFromMagnet(magnet),
+                  magnetUri: magnet,
+                  quality: qualityFromTitle(result.title),
+                  seeds: result.seeds,
+                  peers: result.peers,
+                  sizeDisplay: result.size,
+                }),
+            ),
+            Stream.catchAllCause(() => Stream.empty),
+          ),
+        { concurrency: "unbounded" },
+      ),
+      Stream.take(10),
+    )
+
   const cinemeta = yield* Cinemeta
   const sources = yield* Sources
   yield* sources.register({
     list: StreamRequest.$match({
-      Channel: () => Effect.succeed([]),
+      Channel: () => Stream.empty,
       Movie: ({ imdbId }) =>
         pipe(
           cinemeta.lookupMovie(imdbId),
-          Effect.andThen(result => searchCache(result.query)),
-          Effect.tapErrorCause(Effect.logDebug),
-          Effect.orElseSucceed(() => [] as SourceStream[]),
-          Effect.withSpan("Source.Rarbg.Movie", { attributes: { imdbId } }),
-          Effect.annotateLogs({
-            service: "Source.Rarbg",
-            imdbId,
-          }),
+          Effect.map(result => searchStream(result.query)),
+          Stream.unwrap,
+          Stream.catchAllCause(cause =>
+            Effect.logDebug(cause).pipe(
+              Effect.annotateLogs({
+                service: "Source.Rarbg.Movie",
+                imdbId,
+              }),
+              Stream.drain,
+            ),
+          ),
+          Stream.withSpan("Source.Rarbg.Movie", { attributes: { imdbId } }),
         ),
       Series: ({ imdbId, season, episode }) =>
         pipe(
           cinemeta.lookupEpisode(imdbId, season, episode),
-          Effect.andThen(result =>
-            Effect.forEach(result.queries, searchCache, {
-              concurrency: "unbounded",
-            }),
+          Effect.map(result => Stream.fromIterable(result.queries)),
+          Stream.unwrap,
+          Stream.flatMap(searchStream),
+          Stream.catchAllCause(cause =>
+            Effect.logDebug(cause).pipe(
+              Effect.annotateLogs({
+                service: "Source.Rarbg.Series",
+                imdbId,
+                season,
+                episode,
+              }),
+              Stream.drain,
+            ),
           ),
-          Effect.map(Array.flatten),
-          Effect.tapErrorCause(Effect.logDebug),
-          Effect.orElseSucceed(() => [] as SourceStream[]),
-          Effect.withSpan("Source.Rarbg.Series", {
+          Stream.withSpan("Source.Rarbg.Series", {
             attributes: { imdbId, season, episode },
           }),
-          Effect.annotateLogs({
-            service: "Source.Rarbg",
-            imdbId,
-            season,
-            episode,
-          }),
         ),
-      Tv: () => Effect.succeed([]),
+      Tv: () => Stream.empty,
     }),
   })
 }).pipe(

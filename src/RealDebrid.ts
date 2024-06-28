@@ -6,20 +6,25 @@ import {
   Effect,
   flow,
   Layer,
+  Option,
   Redacted,
+  Request,
+  RequestResolver,
 } from "effect"
 import { Sources } from "./Sources.js"
 import {
   HttpClient,
+  HttpClientError,
   HttpClientRequest,
   HttpClientResponse,
   HttpRouter,
   HttpServerResponse,
 } from "@effect/platform"
-import { Schema } from "@effect/schema"
+import { ParseResult, Schema } from "@effect/schema"
 import { cacheWithSpan, magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
+import { dataLoader } from "@effect/experimental/RequestResolver"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -60,10 +65,37 @@ export const RealDebridLive = Effect.gen(function* () {
       decodeTorrentInfo,
     )
 
-  const availability = (hashes: ReadonlyArray<string>) =>
-    HttpClientRequest.get(
-      `/torrents/instantAvailability/${hashes.join("/")}`,
-    ).pipe(client, decodeAvailabilityResponse)
+  class AvailabilityRequest extends Request.Class<
+    Option.Option<string>,
+    HttpClientError.HttpClientError | ParseResult.ParseError,
+    { infoHash: string }
+  > {}
+  const AvailabilityResolver = yield* RequestResolver.makeBatched(
+    (requests: Array<AvailabilityRequest>) =>
+      HttpClientRequest.get(
+        `/torrents/instantAvailability/${requests.map(_ => _.infoHash).join("/")}`,
+      ).pipe(
+        client,
+        decodeAvailabilityResponse,
+        Effect.flatMap(availability =>
+          Effect.forEach(
+            requests,
+            request => {
+              const hash = request.infoHash.toLowerCase()
+              if (hash in availability && availability[hash].length > 0) {
+                const file = Object.keys(availability[hash][0])[0]
+                return Request.succeed(request, Option.some(file))
+              }
+              return Request.succeed(request, Option.none())
+            },
+            { discard: true },
+          ),
+        ),
+        Effect.catchAllCause(cause =>
+          Effect.forEach(requests, Request.failCause(cause)),
+        ),
+      ),
+  ).pipe(dataLoader({ window: 150 }))
 
   const selectFiles = (id: string, files: ReadonlyArray<string>) =>
     HttpClientRequest.post(`/torrents/selectFiles/${id}`).pipe(
@@ -95,39 +127,40 @@ export const RealDebridLive = Effect.gen(function* () {
   })
 
   yield* sources.registerEmbellisher({
-    transform: (streams, baseUrl) =>
-      availability(streams.flatMap(_ => (_.infoHash ? [_.infoHash] : []))).pipe(
-        Effect.whenEffect(userIsPremium),
-        Effect.flatten,
-        Effect.map(availability =>
-          streams.map(stream => {
-            if (
-              stream.infoHash &&
-              stream.infoHash.toLowerCase() in availability &&
-              availability[stream.infoHash.toLowerCase()].length > 0
-            ) {
-              const file = Object.keys(
-                availability[stream.infoHash.toLowerCase()][0],
-              )[0]
-              return new SourceStream({
+    transform: (stream, baseUrl) => {
+      if (!stream.infoHash) {
+        return Effect.succeed(stream)
+      }
+      return Effect.request(
+        new AvailabilityRequest({ infoHash: stream.infoHash }),
+        AvailabilityResolver,
+      ).pipe(
+        Effect.map(
+          Option.match({
+            onNone: () => stream,
+            onSome: file =>
+              new SourceStream({
                 ...stream,
                 url: new URL(
                   `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file}`,
                   baseUrl,
                 ).toString(),
-              })
-            }
-            return stream
+              }),
           }),
         ),
+        Effect.whenEffect(userIsPremium),
+        Effect.flatten,
         Effect.tapErrorCause(Effect.logDebug),
-        Effect.orElseSucceed(() => streams),
-        Effect.withSpan("RealDebrid.transform"),
+        Effect.orElseSucceed(() => stream),
+        Effect.withSpan("RealDebrid.transform", {
+          attributes: { infoHash: stream.infoHash },
+        }),
         Effect.annotateLogs({
           service: "RealDebrid",
           method: "transform",
         }),
-      ),
+      )
+    },
   })
 
   const router = yield* StremioRouter

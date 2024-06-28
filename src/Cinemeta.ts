@@ -207,7 +207,7 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
       episode: this.episode,
     })
     return Option.match(this.absoluteEpisodeQuery, {
-      onSome: absolute => [season, absolute],
+      onSome: absolute => [absolute, season],
       onNone: () => [season],
     })
   }
