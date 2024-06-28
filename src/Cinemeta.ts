@@ -23,20 +23,22 @@ const make = Effect.gen(function* () {
       HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
     ),
     HttpClient.filterStatusOk,
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" &&
+          err.reason === "StatusCode" &&
+          err.response.status < 400,
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
+    ),
   )
 
   const lookupMovie = yield* cacheWithSpan({
     lookup: (imdbID: string) =>
       HttpClientRequest.get(`/movie/${imdbID}.json`).pipe(
         client,
-        Effect.retry({
-          while: err =>
-            err._tag === "ResponseError" &&
-            err.reason === "StatusCode" &&
-            err.response.status < 400,
-          times: 5,
-          schedule: Schedule.exponential(100),
-        }),
         Movie.decodeResponse,
         Effect.map(_ => _.meta),
         Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbID } }),
