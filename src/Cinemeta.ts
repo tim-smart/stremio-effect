@@ -1,4 +1,4 @@
-import { Array, Context, Data, Effect, Layer, Option } from "effect"
+import { Array, Context, Data, Effect, Layer, Option, Schedule } from "effect"
 import { cacheWithSpan } from "./Utils.js"
 import {
   HttpClient,
@@ -29,6 +29,14 @@ const make = Effect.gen(function* () {
     lookup: (imdbID: string) =>
       HttpClientRequest.get(`/movie/${imdbID}.json`).pipe(
         client,
+        Effect.retry({
+          while: err =>
+            err._tag === "ResponseError" &&
+            err.reason === "StatusCode" &&
+            err.response.status < 400,
+          times: 5,
+          schedule: Schedule.exponential(100),
+        }),
         Movie.decodeResponse,
         Effect.map(_ => _.meta),
         Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbID } }),
