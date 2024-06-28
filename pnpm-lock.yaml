@@ -7,11 +7,10 @@ settings:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
       '@effect/experimental':
         specifier: ^0.17.13
         version: 0.17.13(@effect/platform-node@0.53.13(@effect/platform@0.58.14(@effect/schema@0.68.12(effect@3.4.5))(effect@3.4.5))(effect@3.4.5))(@effect/platform@0.58.14(@effect/schema@0.68.12(effect@3.4.5))(effect@3.4.5))(@effect/schema@0.68.12(effect@3.4.5))(effect@3.4.5)(ws@8.17.1)
-    devDependencies:
       '@effect/opentelemetry':
         specifier: ^0.34.28
         version: 0.34.28(@opentelemetry/api@1.9.0)(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-node@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)(effect@3.4.5)
