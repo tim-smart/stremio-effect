@@ -9,16 +9,16 @@ importers:
   .:
     devDependencies:
       '@effect/opentelemetry':
-        specifier: ^0.34.27
+        specifier: ^0.34.28
         version: 0.34.28(@opentelemetry/api@1.9.0)(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-node@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)(effect@3.4.5)
       '@effect/platform':
-        specifier: ^0.58.12
+        specifier: ^0.58.13
         version: 0.58.13(@effect/schema@0.68.12(effect@3.4.5))(effect@3.4.5)
       '@effect/platform-node':
-        specifier: ^0.53.11
+        specifier: ^0.53.12
         version: 0.53.12(@effect/platform@0.58.13(@effect/schema@0.68.12(effect@3.4.5))(effect@3.4.5))(effect@3.4.5)
       '@effect/schema':
-        specifier: ^0.68.11
+        specifier: ^0.68.12
         version: 0.68.12(effect@3.4.5)
       '@opentelemetry/exporter-trace-otlp-http':
         specifier: ^0.52.1
@@ -36,10 +36,10 @@ importers:
         specifier: ^1.1.17
         version: 1.1.17
       cheerio:
-        specifier: ^1.0.0-rc.12
+        specifier: 1.0.0-rc.12
         version: 1.0.0-rc.12
       effect:
-        specifier: ^3.4.4
+        specifier: ^3.4.5
         version: 3.4.5
       prettier:
         specifier: ^3.3.2
@@ -1035,8 +1035,8 @@ packages:
   long@5.2.3:
     resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==}
 
-  lru-cache@10.2.2:
-    resolution: {integrity: sha512-9hp3Vp2/hFQUiIwKo8XCeFVnrg8Pk3TYNPIR7tJADKi5YfcF7vEaK7avFHTlSy3kOKYaJQaalfEo6YuXdceBOQ==}
+  lru-cache@10.3.0:
+    resolution: {integrity: sha512-CQl19J/g+Hbjbv4Y3mFNNXFEL/5t/KCg8POCuUqd4rMKjGG+j1ybER83hxV58zL+dFI1PTkt3GNFSHRt+d8qEQ==}
     engines: {node: 14 || >=16.14}
 
   media-typer@0.3.0:
@@ -1087,8 +1087,8 @@ packages:
     resolution: {integrity: sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg==}
     engines: {node: '>=6'}
 
-  minimatch@9.0.4:
-    resolution: {integrity: sha512-KqWh+VchfxcMNRAJjj2tnsSJdNbHsVgnkBhTNrW7AjVo6OvLtxw8zfT9oLw1JSohlFzJ8jCoTgaoXvJ+kHt6fw==}
+  minimatch@9.0.5:
+    resolution: {integrity: sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==}
     engines: {node: '>=16 || 14 >=14.17'}
 
   minimist@1.2.8:
@@ -2341,7 +2341,7 @@ snapshots:
     dependencies:
       foreground-child: 3.2.1
       jackspeak: 3.4.0
-      minimatch: 9.0.4
+      minimatch: 9.0.5
       minipass: 7.1.2
       package-json-from-dist: 1.0.0
       path-scurry: 1.11.1
@@ -2460,7 +2460,7 @@ snapshots:
 
   long@5.2.3: {}
 
-  lru-cache@10.2.2: {}
+  lru-cache@10.3.0: {}
 
   media-typer@0.3.0: {}
 
@@ -2491,7 +2491,7 @@ snapshots:
 
   mimic-fn@2.1.0: {}
 
-  minimatch@9.0.4:
+  minimatch@9.0.5:
     dependencies:
       brace-expansion: 2.0.1
 
@@ -2578,7 +2578,7 @@ snapshots:
 
   path-scurry@1.11.1:
     dependencies:
-      lru-cache: 10.2.2
+      lru-cache: 10.3.0
       minipass: 7.1.2
 
   path-to-regexp@0.1.7: {}
