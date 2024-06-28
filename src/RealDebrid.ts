@@ -39,6 +39,7 @@ export const RealDebridLive = Effect.gen(function* () {
         type: Schema.Literal("premium", "free"),
       }),
     ),
+    Effect.tapErrorCause(Effect.log),
     Effect.cachedWithTTL("1 hour"),
   )
   const userIsPremium = user.pipe(
@@ -161,6 +162,9 @@ export const RealDebridLive = Effect.gen(function* () {
       ConfigProvider.constantCase,
     ),
   ),
+  Effect.annotateLogs({
+    service: "RealDebrid",
+  }),
   Layer.scopedDiscard,
   Layer.provide(Sources.Live),
   Layer.provide(StremioRouter.Live),
