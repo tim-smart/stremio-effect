@@ -1,4 +1,13 @@
-import { Array, Context, Data, Effect, Layer, Option, Schedule } from "effect"
+import {
+  Array,
+  Console,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Option,
+  Schedule,
+} from "effect"
 import { cacheWithSpan } from "./Utils.js"
 import {
   HttpClient,
@@ -23,6 +32,9 @@ const make = Effect.gen(function* () {
       HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
     ),
     HttpClient.filterStatusOk,
+    HttpClient.transformResponse(
+      Effect.tapErrorTag("ResponseError", _ => Console.log(_.response)),
+    ),
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>
