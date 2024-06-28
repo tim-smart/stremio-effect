@@ -76,7 +76,7 @@ export const SourceRargbLive = Effect.gen(function* () {
           const matcher = request.titleMatcher
           return Effect.allSuccesses(
             pipe(
-              results,
+              Array.take(results, 10),
               matcher._tag === "Some"
                 ? Array.filter(_ => matcher.value(_.title))
                 : identity,
@@ -86,7 +86,7 @@ export const SourceRargbLive = Effect.gen(function* () {
                 ),
               ),
             ),
-            { concurrency: 15 },
+            { concurrency: 10 },
           )
         }),
         Effect.map(
