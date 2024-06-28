@@ -8,6 +8,11 @@ import { Config, Layer, Logger, LogLevel } from "effect"
 import { TracingLive } from "./Tracing.js"
 import { AllSourcesDebrid } from "./Sources/All.js"
 import { createServer } from "node:http"
+import * as Net from "node:net"
+
+// Fixes issues with timeouts
+Net.setDefaultAutoSelectFamily(false)
+
 const StremioLive = Stremio.layerAddon.pipe(
   Layer.provide(
     Stremio.StremioManifest.layer({
