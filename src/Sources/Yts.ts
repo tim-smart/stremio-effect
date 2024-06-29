@@ -38,7 +38,7 @@ export const SourceYtsLive = Effect.gen(function* () {
           Effect.map(_ => _.streams),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
-          Effect.withSpan("Source.Yts.list", { attributes: { imdbId } }),
+          Effect.withSpan("Source.Yts.Movie", { attributes: { imdbId } }),
           Effect.annotateLogs({
             service: "Source.Yts",
             method: "list",
