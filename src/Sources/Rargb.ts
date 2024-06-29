@@ -3,16 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import {
-  Array,
-  Duration,
-  Effect,
-  flow,
-  identity,
-  Layer,
-  pipe,
-  Stream,
-} from "effect"
+import { Array, Duration, Effect, flow, Layer, pipe, Stream } from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
 import {
@@ -149,7 +140,7 @@ export const SourceRargbLive = Effect.gen(function* () {
           cinemeta.lookupEpisode(imdbId, season, episode),
           Effect.map(result => Stream.fromIterable(result.queries)),
           Stream.unwrap,
-          Stream.flatMap(searchStream),
+          Stream.flatMap(searchStream, { concurrency: "unbounded" }),
           Stream.catchAllCause(cause =>
             Effect.logDebug(cause).pipe(
               Effect.annotateLogs({
