@@ -1,4 +1,4 @@
-import { Array, Data, Order, pipe } from "effect"
+import { Data, Order } from "effect"
 import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize } from "../Utils.js"
 import * as Quality from "./Quality.js"
@@ -19,16 +19,6 @@ export class SourceStream extends Data.Class<{
     seeds: Order.reverse(Order.number),
   })
 
-  static sort = (streams: ReadonlyArray<SourceStream>) =>
-    pipe(
-      streams,
-      // Array.groupBy(_ => _.quality),
-      // Record.map(Array.take(3)),
-      // Record.values,
-      // Array.flatten,
-      Array.sort(this.Order),
-    )
-
   get sizeFormatted() {
     if (this.sizeBytes) {
       return bytesToSize(this.sizeBytes)
@@ -45,8 +35,8 @@ export class SourceStream extends Data.Class<{
       title: `${this.sizeFormatted}  ⬆️ ${this.seeds}`,
       name: `${this.quality}${this.url ? ` ✨` : ""}`,
       behaviorHints: {
-        group: `effect-${this.quality}`,
-      },
+        bingeGroup: `effect-${this.quality}`,
+      } as any,
     }
   }
 }

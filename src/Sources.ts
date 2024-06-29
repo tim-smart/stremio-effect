@@ -1,12 +1,11 @@
 import {
-  Chunk,
+  Array,
   Context,
   Data,
   Effect,
   Equal,
   GroupBy,
   Hash,
-  Iterable,
   Layer,
   Stream,
 } from "effect"
@@ -51,7 +50,7 @@ const make = Effect.gen(function* () {
         { concurrency: "unbounded" },
       ),
       Stream.runCollect,
-      Effect.map(chunk => SourceStream.sort(Chunk.toReadonlyArray(chunk))),
+      Effect.map(Array.sort(SourceStream.Order)),
     )
   class ListRequest extends Data.Class<{
     readonly request: StreamRequest
