@@ -31,6 +31,7 @@ const make = Effect.gen(function* () {
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
     ),
+    HttpClient.followRedirects(),
     HttpClient.filterStatusOk,
     HttpClient.transformResponse(
       Effect.retry({
