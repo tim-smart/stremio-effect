@@ -3,7 +3,16 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Data, Duration, Effect, flow, Layer, Match, Stream } from "effect"
+import {
+  Data,
+  Duration,
+  Effect,
+  flow,
+  Layer,
+  Match,
+  Schedule,
+  Stream,
+} from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
 import {
@@ -19,6 +28,14 @@ export const SourceRargbLive = Effect.gen(function* () {
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(
       flow(HttpClientRequest.prependUrl("https://rargb.to")),
+    ),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" && err.response.status === 429,
+        times: 5,
+        schedule: Schedule.spaced(5000),
+      }),
     ),
   )
 
