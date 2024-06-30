@@ -6,6 +6,7 @@ import {
   Equal,
   GroupBy,
   Hash,
+  Iterable,
   Layer,
   Stream,
 } from "effect"
@@ -18,6 +19,7 @@ import {
   ImdbSeasonQuery,
   ImdbSeriesQuery,
   ImdbTvQuery,
+  nonSeasonQuery,
   VideoQuery,
 } from "./Domain/VideoQuery.js"
 import { Cinemeta } from "./Cinemeta.js"
@@ -92,39 +94,51 @@ const make = Effect.gen(function* () {
   })
 
   const listUncached = (request: StreamRequest, baseUrl: URL) =>
-    Stream.fromIterable(sources).pipe(
-      Stream.bindTo("source"),
-      Stream.bind("query", () => queriesFromRequest(request)),
+    queriesFromRequest(request).pipe(
+      Stream.bindTo("query"),
+      Stream.let("nonSeasonQuery", ({ query }) => nonSeasonQuery(query)),
+      Stream.bind("source", () => Stream.fromIterable(sources)),
       Stream.bind("sourceResult", ({ source, query }) => source.list(query), {
         concurrency: "unbounded",
       }),
-      Stream.bind("result", ({ sourceResult }) => {
-        if (embellishers.size === 0) {
-          return sourceResult._tag === "SourceStream"
-            ? Stream.make(sourceResult)
-            : Stream.empty
+      Stream.filter(({ sourceResult, query }) => {
+        if (sourceResult.verified) {
+          return true
         }
-        return Array.reduce(
-          embellishers,
-          Effect.succeed([sourceResult]),
-          (acc, embellisher) =>
-            Effect.flatMap(
-              acc,
-              Effect.forEach(_ => embellisher.transform(_, baseUrl)),
-            ).pipe(Effect.map(Array.flatten)),
-        ).pipe(Stream.fromIterableEffect) as Stream.Stream<SourceStream>
+        return query.titleMatcher._tag === "Some"
+          ? query.titleMatcher.value(sourceResult.title)
+          : true
       }),
-      Stream.filter(({ query, result }) =>
-        query.titleMatcher._tag === "Some"
-          ? query.titleMatcher.value(result.title)
-          : true,
-      ),
+      embellishers.size === 0
+        ? Stream.bind("result", ({ sourceResult }) =>
+            sourceResult._tag === "SourceStream"
+              ? Stream.make(sourceResult)
+              : Stream.empty,
+          )
+        : Stream.bind(
+            "result",
+            ({ sourceResult }) =>
+              Iterable.unsafeHead(embellishers).transform(
+                sourceResult,
+                baseUrl,
+              ),
+            { concurrency: "unbounded" },
+          ),
+      Stream.filter(({ nonSeasonQuery, result }) => {
+        if (result.verified) {
+          return true
+        }
+        return nonSeasonQuery.titleMatcher._tag === "Some"
+          ? nonSeasonQuery.titleMatcher.value(result.title)
+          : true
+      }),
       Stream.map(_ => _.result),
       Stream.groupByKey(_ => _.quality),
       GroupBy.evaluate((_, stream) => Stream.take(stream, 3)),
       Stream.runCollect,
       Effect.map(Array.sort(SourceStream.Order)),
     )
+
   class ListRequest extends Data.Class<{
     readonly request: StreamRequest
     readonly baseUrl: URL
@@ -152,7 +166,7 @@ export class Sources extends Context.Tag("stremio/Sources")<
   Sources,
   Effect.Effect.Success<typeof make>
 >() {
-  static Live = Layer.effect(Sources, make)
+  static Live = Layer.effect(Sources, make).pipe(Layer.provide(Cinemeta.Live))
 }
 
 // domain
@@ -167,5 +181,5 @@ export interface Embellisher {
   readonly transform: (
     stream: SourceStream | SourceSeason,
     baseUrl: URL,
-  ) => Effect.Effect<ReadonlyArray<SourceStream>>
+  ) => Stream.Stream<SourceStream>
 }

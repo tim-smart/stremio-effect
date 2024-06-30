@@ -4,11 +4,11 @@ import {
   HttpClientResponse,
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
-import { Chunk, Data, Effect, Layer, Option, Stream } from "effect"
+import { Data, Effect, Layer, Match, Option, Stream } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { Sources } from "../Sources.js"
-import { StreamRequest } from "../Stremio.js"
 import { cacheWithSpan, qualityFromTitle } from "../Utils.js"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 
 export const SourceEztvLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -51,9 +51,8 @@ export const SourceEztvLive = Effect.gen(function* () {
     ).pipe(Stream.catchTag("ParseError", () => Stream.empty))
 
   yield* sources.register({
-    list: StreamRequest.$match({
-      Channel: () => Stream.empty,
-      Series: ({ imdbId, season, episode }) =>
+    list: Match.type<VideoQuery>().pipe(
+      Match.tag("ImdbSeriesQuery", ({ imdbId, season, episode }) =>
         stream(imdbId).pipe(
           Stream.filter(
             tor => tor.season === season && tor.episode === episode,
@@ -74,9 +73,9 @@ export const SourceEztvLive = Effect.gen(function* () {
             attributes: { imdbId, season, episode },
           }),
         ),
-      Movie: () => Stream.empty,
-      Tv: () => Stream.empty,
-    }),
+      ),
+      Match.orElse(() => Stream.empty),
+    ),
   })
 }).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
 
@@ -102,12 +101,14 @@ export class Torrent extends S.Class<Torrent>("Torrent")({
   get asStream() {
     return new SourceStream({
       source: "EZTV",
+      title: this.title,
       infoHash: this.hash,
       quality: qualityFromTitle(this.title),
       seeds: this.seeds,
       peers: this.peers,
       magnetUri: this.magnet_url,
       sizeBytes: this.size_bytes,
+      verified: true,
     })
   }
 }

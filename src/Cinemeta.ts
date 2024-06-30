@@ -8,7 +8,6 @@ import {
 import * as S from "@effect/schema/Schema"
 import { EpisodeData, Tvdb } from "./Tvdb.js"
 import {
-  AbsoluteSeasonQuery,
   AbsoluteSeriesQuery,
   ImdbAbsoluteSeriesQuery,
   MovieQuery,
@@ -222,14 +221,14 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
       season: this.season,
       episode: this.episode,
     })
-    const season = new SeasonQuery({
+    const seasons = SeasonQuery.variants({
       title: this.series.name,
       season: this.season,
       episode: this.episode,
     })
     return Option.match(this.absoluteQueries, {
-      onNone: () => [series, season],
-      onSome: absolute => [...absolute, series, season],
+      onNone: () => [series, ...seasons],
+      onSome: absolute => [...absolute, series, ...seasons],
     })
   }
 }
@@ -244,6 +243,11 @@ export class GeneralEpisodeResult extends Data.TaggedClass(
   get queries() {
     return [
       new SeriesQuery({
+        title: this.series.name,
+        season: this.season,
+        episode: this.episode,
+      }),
+      ...SeasonQuery.variants({
         title: this.series.name,
         season: this.season,
         episode: this.episode,

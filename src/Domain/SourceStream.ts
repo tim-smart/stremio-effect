@@ -14,6 +14,7 @@ export class SourceStream extends Data.TaggedClass("SourceStream")<{
   sizeBytes?: number
   sizeDisplay?: string
   url?: string
+  verified?: boolean
 }> {
   static Order = Order.struct({
     quality: Quality.Order,
@@ -44,8 +45,10 @@ export class SourceStream extends Data.TaggedClass("SourceStream")<{
 
 export class SourceSeason extends Data.TaggedClass("SourceSeason")<{
   source: string
+  title: string
   infoHash: string
   magnetUri: string
   seeds: number
   peers: number
+  verified?: boolean
 }> {}

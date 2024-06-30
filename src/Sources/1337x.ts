@@ -14,11 +14,11 @@ import {
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 
-export const SourceRargbLive = Effect.gen(function* () {
+export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://rargb.to")),
+      flow(HttpClientRequest.prependUrl("https://1337x.to")),
     ),
   )
 
@@ -30,7 +30,7 @@ export const SourceRargbLive = Effect.gen(function* () {
         Effect.flatMap(html => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(
-            $("td.lista a[href^='magnet:']").attr("href"),
+            $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
           )
         }),
       ),
@@ -40,7 +40,7 @@ export const SourceRargbLive = Effect.gen(function* () {
 
   const parseResults = (html: string) => {
     const $ = Cheerio.load(html)
-    const table = $("table.lista2t")
+    const table = $("table.table-list")
     const streams: Array<{
       readonly url: string
       readonly title: string
@@ -48,16 +48,21 @@ export const SourceRargbLive = Effect.gen(function* () {
       readonly seeds: number
       readonly peers: number
     }> = []
-    table.find("tr.lista2").each((_, row) => {
+    table.find("> tbody > tr").each((_, row) => {
       const $row = $(row)
       const cells = $row.find("> td")
-      const link = cells.eq(1).find("a")
+      const link = cells.eq(0).find("a").eq(1)
       streams.push({
         url: link.attr("href")!,
-        title: link.attr("title")!,
-        size: cells.eq(4).text(),
-        seeds: +cells.eq(5).text(),
-        peers: +cells.eq(6).text(),
+        title: link.text().trim(),
+        size: cells
+          .eq(4)[0]
+          .children.filter(_ => _.type === "text")
+          .map(_ => _.data)
+          .join(" ")
+          .trim(),
+        seeds: +cells.eq(1).text(),
+        peers: +cells.eq(2).text(),
       })
     })
     return streams
@@ -65,21 +70,18 @@ export const SourceRargbLive = Effect.gen(function* () {
 
   class SearchRequest extends Data.Class<{
     query: string
-    category: "movies" | "series"
+    category: "Movies" | "TV"
   }> {}
 
   const searchCache = yield* cacheWithSpan({
     lookup: (request: SearchRequest) =>
-      HttpClientRequest.get("/search/").pipe(
-        HttpClientRequest.setUrlParams({
-          search: request.query,
-          "category[]":
-            request.category === "movies" ? ["movies"] : ["tv", "anime"],
-        }),
+      HttpClientRequest.get(
+        `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
+      ).pipe(
         client,
         HttpClientResponse.text,
         Effect.map(parseResults),
-        Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
+        Effect.withSpan("Source.1337x.search", { attributes: { ...request } }),
       ),
     capacity: 4096,
     timeToLive: "12 hours",
@@ -89,7 +91,7 @@ export const SourceRargbLive = Effect.gen(function* () {
     searchCache(
       new SearchRequest({
         query: request.asQuery,
-        category: request._tag === "MovieQuery" ? "movies" : "series",
+        category: request._tag === "MovieQuery" ? "Movies" : "TV",
       }),
     ).pipe(
       Effect.map(Stream.fromIterable),
@@ -101,7 +103,7 @@ export const SourceRargbLive = Effect.gen(function* () {
             Effect.map(magnet =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
-                    source: "Rarbg",
+                    source: "1337x",
                     title: result.title,
                     infoHash: infoHashFromMagnet(magnet),
                     magnetUri: magnet,
@@ -109,7 +111,7 @@ export const SourceRargbLive = Effect.gen(function* () {
                     peers: result.peers,
                   })
                 : new SourceStream({
-                    source: "Rarbg",
+                    source: "1337x",
                     title: result.title,
                     infoHash: infoHashFromMagnet(magnet),
                     magnetUri: magnet,
@@ -138,14 +140,14 @@ export const SourceRargbLive = Effect.gen(function* () {
             Stream.catchAllCause(cause =>
               Effect.logDebug(cause).pipe(
                 Effect.annotateLogs({
-                  service: "Source.Rarbg",
+                  service: "Source.1337x",
                   method: "list",
                   query,
                 }),
                 Stream.drain,
               ),
             ),
-            Stream.withSpan("Source.Rarbg.list", { attributes: { query } }),
+            Stream.withSpan("Source.1337x.list", { attributes: { query } }),
           ),
       ),
       Match.orElse(() => Stream.empty),

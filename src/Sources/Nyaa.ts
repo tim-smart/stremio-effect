@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, flow, identity, Layer, pipe, Stream } from "effect"
+import { Array, Effect, flow, Layer, Match, pipe, Stream } from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
 import {
@@ -11,9 +11,7 @@ import {
   infoHashFromMagnet,
   qualityFromTitle,
 } from "../Utils.js"
-import { StreamRequest } from "../Stremio.js"
-import { Cinemeta } from "../Cinemeta.js"
-import { SeriesQuery } from "../Domain/VideoQuery.js"
+import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceNyaaLive = Effect.gen(function* () {
@@ -25,7 +23,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
   )
 
   const searchCache = yield* cacheWithSpan({
-    lookup: (request: SeriesQuery) =>
+    lookup: (request: AbsoluteSeriesQuery) =>
       HttpClientRequest.get("/").pipe(
         HttpClientRequest.setUrlParams({
           f: 1,
@@ -36,18 +34,15 @@ export const SourceNyaaLive = Effect.gen(function* () {
         }),
         client,
         HttpClientResponse.text,
-        Effect.map(html => {
-          const matcher = request.titleMatcher
-          return pipe(
+        Effect.map(html =>
+          pipe(
             parseResults(html),
-            matcher._tag === "Some"
-              ? Array.filter(_ => matcher.value(_.title))
-              : identity,
             Array.map(
               result =>
                 new SourceStream({
                   source: "Nyaa",
                   infoHash: infoHashFromMagnet(result.magnet),
+                  title: result.title,
                   magnetUri: result.magnet,
                   quality: qualityFromTitle(result.title),
                   seeds: result.seeds,
@@ -55,8 +50,8 @@ export const SourceNyaaLive = Effect.gen(function* () {
                   sizeDisplay: result.size,
                 }),
             ),
-          )
-        }),
+          ),
+        ),
         Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
       ),
     capacity: 4096,
@@ -87,39 +82,21 @@ export const SourceNyaaLive = Effect.gen(function* () {
     return streams
   }
 
-  const cinemeta = yield* Cinemeta
   const sources = yield* Sources
   yield* sources.register({
-    list: StreamRequest.$match({
-      Channel: () => Stream.empty,
-      Movie: () => Stream.empty,
-      Series: ({ imdbId, season, episode }) =>
-        pipe(
-          cinemeta.lookupEpisode(imdbId, season, episode),
-          Effect.andThen(result => {
-            if (result._tag === "GeneralEpisodeResult") {
-              return Effect.succeed([])
-            }
-            return searchCache(result.absoluteQuery)
-          }),
+    list: Match.type<VideoQuery>().pipe(
+      Match.tag("AbsoluteSeriesQuery", query =>
+        searchCache(query).pipe(
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Nyaa.Series", {
-            attributes: { imdbId, season, episode },
+            attributes: { query },
           }),
-          Effect.annotateLogs({
-            service: "Source.Nyaa",
-            imdbId,
-            season,
-            episode,
-          }),
+          Effect.annotateLogs({ service: "Source.Nyaa", query }),
           Stream.fromIterableEffect,
         ),
-      Tv: () => Stream.empty,
-    }),
+      ),
+      Match.orElse(() => Stream.empty),
+    ),
   })
-}).pipe(
-  Layer.scopedDiscard,
-  Layer.provide(Sources.Live),
-  Layer.provide(Cinemeta.Live),
-)
+}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))

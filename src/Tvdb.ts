@@ -7,12 +7,6 @@ import {
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
 import { Schema } from "@effect/schema"
-import {
-  AbsoluteEpisodeQuery,
-  SeasonEpisodeQuery,
-  SeriesQuery,
-} from "./Domain/VideoQuery.js"
-import { NonEmptyReadonlyArray } from "effect/Array"
 
 const make = Effect.gen(function* () {
   const apiKey = yield* Config.redacted("apiKey")
@@ -87,23 +81,7 @@ export class EpisodeData extends S.Class<EpisodeData>("Data")({
   lastUpdated: S.String,
   finaleType: S.Union(S.Null, S.String),
   year: S.String,
-}) {
-  queries(series: string): NonEmptyReadonlyArray<SeriesQuery> {
-    return [
-      new SeriesQuery({
-        title: series,
-        episode: new SeasonEpisodeQuery({
-          season: this.seasonNumber,
-          episode: this.number,
-        }),
-      }),
-      new SeriesQuery({
-        title: series,
-        episode: new AbsoluteEpisodeQuery({ number: this.absoluteNumber }),
-      }),
-    ]
-  }
-}
+}) {}
 
 export class Episode extends S.Class<Episode>("Episode")({
   status: S.String,

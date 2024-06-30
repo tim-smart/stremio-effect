@@ -7,9 +7,11 @@ import {
   flow,
   Layer,
   Option,
+  Record,
   Redacted,
   Request,
   RequestResolver,
+  Stream,
 } from "effect"
 import { Sources } from "./Sources.js"
 import {
@@ -89,7 +91,14 @@ export const RealDebridLive = Effect.gen(function* () {
             request => {
               const hash = request.infoHash.toLowerCase()
               if (hash in availability && availability[hash].length > 0) {
-                const files = Object.entries(availability[hash][0]).map(
+                const fileRecord: Record<
+                  string,
+                  { filename: string; filesize: number }
+                > = {}
+                for (const files of availability[hash]) {
+                  Object.assign(fileRecord, files)
+                }
+                const files = Object.entries(fileRecord).map(
                   ([fileNumber, { filename, filesize }]) => ({
                     fileNumber,
                     fileName: filename,
@@ -193,6 +202,7 @@ export const RealDebridLive = Effect.gen(function* () {
           service: "RealDebrid",
           method: "transform",
         }),
+        Stream.fromIterableEffect,
       ),
   })
 

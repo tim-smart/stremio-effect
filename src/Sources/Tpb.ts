@@ -3,19 +3,13 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, identity, Layer, Match, Stream } from "effect"
+import { Array, Effect, Layer, Match, Stream } from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
-import { StreamRequest } from "../Stremio.js"
-import {
-  ImdbMovieQuery,
-  ImdbVideoQuery,
-  VideoQuery,
-} from "../Domain/VideoQuery.js"
-import { Cinemeta } from "../Cinemeta.js"
-import { SourceStream } from "../Domain/SourceStream.js"
+import { ImdbVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
+import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -24,59 +18,47 @@ export const SourceTpbLive = Effect.gen(function* () {
   )
 
   const search = yield* cacheWithSpan({
-    lookup: (query: ImdbVideoQuery) =>
+    lookup: (imbdId: string) =>
       HttpClientRequest.get("/q.php", {
-        urlParams: { q: query.asQuery },
+        urlParams: { q: imbdId },
       }).pipe(
         client,
         SearchResult.decodeResponse,
         Effect.map(results => (results[0].id === "0" ? [] : results)),
         Effect.withSpan("Source.Tpb.search", {
-          attributes: { query: query.asQuery },
+          attributes: { imbdId },
         }),
       ),
     capacity: 4096,
     timeToLive: "12 hours",
   })
 
-  const cinemeta = yield* Cinemeta
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
-      // Match.tags({
-      // }),
+      Match.tag("ImbdMovieQuery", "ImdbSeriesQuery", "ImdbSeasonQuery", query =>
+        search(query.imdbId).pipe(
+          Effect.map(
+            Array.map(result =>
+              query._tag === "ImdbSeasonQuery"
+                ? result.asSeason
+                : result.asStream,
+            ),
+          ),
+          Effect.tapErrorCause(Effect.logDebug),
+          Effect.orElseSucceed(() => []),
+          Effect.withSpan("Source.Tpb.Imdb", { attributes: { query } }),
+          Effect.annotateLogs({
+            service: "Source.Tpb",
+            method: "list",
+            kind: "Imdb",
+          }),
+          Stream.fromIterableEffect,
+        ),
+      ),
       Match.orElse(() => Stream.empty),
     ),
-    // list: StreamRequest.$match({
-    //   Channel: () => Stream.empty,
-    //   Movie: ({ imdbId }) =>
-    //     search(new ImdbMovieQuery({ imdbId })).pipe(
-    //       Effect.map(Array.map(_ => _.asStream)),
-    //       Effect.tapErrorCause(Effect.logDebug),
-    //       Effect.orElseSucceed(() => []),
-    //       Effect.withSpan("Source.Tpb.Movie", { attributes: { imdbId } }),
-    //       Effect.map(Stream.fromIterable),
-    //       Stream.unwrap,
-    //     ),
-    //   Series: ({ imdbId, season, episode }) =>
-    //     cinemeta.lookupEpisode(imdbId, season, episode).pipe(
-    //       Effect.flatMap(result => search(result.imdbQuery)),
-    //       Effect.map(Array.map(_ => _.asStream)),
-    //       Effect.tapErrorCause(Effect.logDebug),
-    //       Effect.orElseSucceed(() => []),
-    //       Effect.withSpan("Source.Tpb.Series", {
-    //         attributes: { imdbId, season, episode },
-    //       }),
-    //       Effect.map(Stream.fromIterable),
-    //       Stream.unwrap,
-    //     ),
-    //   Tv: () => Stream.empty,
-    // }),
   })
-}).pipe(
-  Layer.scopedDiscard,
-  Layer.provide(Sources.Live),
-  Layer.provide(Cinemeta.Live),
-)
+}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
 
 // schemas
 
@@ -100,12 +82,24 @@ export class SearchResult extends S.Class<SearchResult>("SearchResult")({
   get asStream() {
     return new SourceStream({
       source: "TPB",
+      title: this.name,
       infoHash: this.info_hash,
       magnetUri: magnetFromHash(this.info_hash),
       quality: qualityFromTitle(this.name),
       seeds: this.seeders,
       peers: this.leechers,
       sizeBytes: this.size,
+    })
+  }
+
+  get asSeason() {
+    return new SourceSeason({
+      source: "TPB",
+      title: this.name,
+      infoHash: this.info_hash,
+      magnetUri: magnetFromHash(this.info_hash),
+      seeds: this.seeders,
+      peers: this.leechers,
     })
   }
 }

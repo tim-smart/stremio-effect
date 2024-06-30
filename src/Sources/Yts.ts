@@ -3,12 +3,12 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Duration, Effect, Layer, Stream } from "effect"
+import { Duration, Effect, Layer, Match, Stream } from "effect"
 import { Sources } from "../Sources.js"
-import { StreamRequest } from "../Stremio.js"
 import * as S from "@effect/schema/Schema"
 import { cacheWithSpan, magnetFromHash } from "../Utils.js"
 import { SourceStream } from "../Domain/SourceStream.js"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -31,24 +31,23 @@ export const SourceYtsLive = Effect.gen(function* () {
     timeToLive: Duration.days(10),
   })
   yield* sources.register({
-    list: StreamRequest.$match({
-      Channel: () => Stream.empty,
-      Movie: ({ imdbId }) =>
+    list: Match.type<VideoQuery>().pipe(
+      Match.tag("ImbdMovieQuery", ({ imdbId }) =>
         details(imdbId).pipe(
           Effect.map(_ => _.streams),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
-          Effect.withSpan("Source.Yts.Movie", { attributes: { imdbId } }),
+          Effect.withSpan("Source.Yts.Imdb", { attributes: { imdbId } }),
           Effect.annotateLogs({
             service: "Source.Yts",
             method: "list",
+            kind: "Imdb",
           }),
-          Effect.map(Stream.fromIterable),
-          Stream.unwrap,
+          Stream.fromIterableEffect,
         ),
-      Series: () => Stream.empty,
-      Tv: () => Stream.empty,
-    }),
+      ),
+      Match.orElse(() => Stream.empty),
+    ),
   })
 }).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
 
@@ -77,19 +76,7 @@ export class Torrent extends S.Class<Torrent>("Torrent")({
   size_bytes: S.Number,
   date_uploaded: S.String,
   date_uploaded_unix: S.Number,
-}) {
-  get asStream() {
-    return new SourceStream({
-      source: "YTS",
-      infoHash: this.hash,
-      magnetUri: magnetFromHash(this.hash),
-      quality: this.quality,
-      seeds: this.seeds,
-      peers: this.peers,
-      sizeBytes: this.size_bytes,
-    })
-  }
-}
+}) {}
 
 export class Movie extends S.Class<Movie>("Movie")({
   id: S.Number,
@@ -108,7 +95,19 @@ export class Movie extends S.Class<Movie>("Movie")({
     if (!this.torrents) {
       return []
     }
-    return this.torrents.map(_ => _.asStream)
+    return this.torrents.map(
+      tor =>
+        new SourceStream({
+          source: "YTS",
+          title: this.title || this.title_long,
+          infoHash: tor.hash,
+          magnetUri: magnetFromHash(tor.hash),
+          quality: tor.quality,
+          seeds: tor.seeds,
+          peers: tor.peers,
+          sizeBytes: tor.size_bytes,
+        }),
+    )
   }
 }
 

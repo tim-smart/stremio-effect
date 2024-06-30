@@ -1,15 +1,10 @@
-import { Data, Option } from "effect"
-
-export type VideoQueryCategory = "series" | "movie"
+import { Data, Option, Predicate } from "effect"
 
 export class SeriesQuery extends Data.TaggedClass("SeriesQuery")<{
   readonly title: string
   readonly season: number
   readonly episode: number
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
-  }
   get titleMatcher() {
     return Option.some(
       episodeTitleMatcher(formatEpisode(this.season, this.episode)),
@@ -26,9 +21,6 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
   readonly title: string
   readonly number: number
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
-  }
   get titleMatcher() {
     return Option.some(episodeTitleMatcher(this.number.toString()))
   }
@@ -42,9 +34,6 @@ export class ImdbSeriesQuery extends Data.TaggedClass("ImdbSeriesQuery")<{
   readonly season: number
   readonly episode: number
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
-  }
   get titleMatcher() {
     return Option.some(
       episodeTitleMatcher(formatEpisode(this.season, this.episode)),
@@ -61,9 +50,6 @@ export class ImdbAbsoluteSeriesQuery extends Data.TaggedClass(
   readonly imdbId: string
   readonly number: number
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
-  }
   get titleMatcher() {
     return Option.some(episodeTitleMatcher(this.number.toString()))
   }
@@ -76,15 +62,28 @@ export class SeasonQuery extends Data.TaggedClass("SeasonQuery")<{
   readonly title: string
   readonly season: number
   readonly episode: number
+  readonly seasonString: string
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
+  static variants = (props: {
+    readonly title: string
+    readonly season: number
+    readonly episode: number
+  }) => [
+    new SeasonQuery({
+      ...props,
+      seasonString: seasonString(props.season),
+    }),
+    new SeasonQuery({
+      ...props,
+      seasonString: `Season ${props.season}`,
+    }),
+  ]
+
+  get asQuery() {
+    return `${this.title} ${this.seasonString}`
   }
   get titleMatcher() {
-    return Option.some(episodeTitleMatcher(seasonString(this.season)))
-  }
-  get asQuery() {
-    return `${this.title} ${seasonString(this.season)}`
+    return Option.some(episodeTitleMatcher(this.seasonString))
   }
   get seriesQuery() {
     return new SeriesQuery({
@@ -100,11 +99,8 @@ export class ImdbSeasonQuery extends Data.TaggedClass("ImdbSeasonQuery")<{
   readonly season: number
   readonly episode: number
 }> {
-  get category(): VideoQueryCategory {
-    return "series"
-  }
   get titleMatcher() {
-    return Option.some(episodeTitleMatcher(seasonString(this.season)))
+    return Option.some(seasonTitleMatcher(this.season))
   }
   get asQuery() {
     return this.imdbId
@@ -121,9 +117,6 @@ export class ImdbSeasonQuery extends Data.TaggedClass("ImdbSeasonQuery")<{
 export class MovieQuery extends Data.TaggedClass("MovieQuery")<{
   readonly title: string
 }> {
-  get category(): VideoQueryCategory {
-    return "movie"
-  }
   get asQuery() {
     return this.title
   }
@@ -132,12 +125,9 @@ export class MovieQuery extends Data.TaggedClass("MovieQuery")<{
   }
 }
 
-export class ImdbMovieQuery extends Data.TaggedClass("MovieQuery")<{
+export class ImdbMovieQuery extends Data.TaggedClass("ImbdMovieQuery")<{
   readonly imdbId: string
 }> {
-  get category(): VideoQueryCategory {
-    return "movie"
-  }
   get asQuery() {
     return this.imdbId
   }
@@ -181,8 +171,16 @@ export type VideoQuery =
   | ImdbSeriesQuery
 
 export type AllSeasonQuery = SeasonQuery | ImdbSeasonQuery
-
-export type ImdbVideoQuery = ImdbMovieQuery | ImdbSeasonQuery | ImdbSeriesQuery
+export type TitleVideoQuery =
+  | MovieQuery
+  | SeriesQuery
+  | SeasonQuery
+  | AbsoluteSeriesQuery
+export type ImdbVideoQuery =
+  | ImdbMovieQuery
+  | ImdbSeasonQuery
+  | ImdbSeriesQuery
+  | ImdbAbsoluteSeriesQuery
 
 // helpers
 
@@ -190,9 +188,22 @@ const episodeTitleMatcher = (query: string) => {
   const regex = new RegExp(`(?:^|[^A-z0-9-])${query}(?:$|[^A-z0-9-])`, "i")
   return (title: string) => regex.test(title)
 }
+
+const seasonTitleMatcher = (season: number) =>
+  Predicate.or(
+    episodeTitleMatcher(seasonString(season)),
+    episodeTitleMatcher(`Season ${season}`),
+  )
+
 const seasonString = (season: number) => {
   return `S${season.toString().padStart(2, "0")}`
 }
 
 export const formatEpisode = (season: number, episode: number) =>
   `S${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}`
+
+export const isSeasonQuery = (query: VideoQuery): query is AllSeasonQuery =>
+  query._tag === "SeasonQuery" || query._tag === "ImdbSeasonQuery"
+
+export const nonSeasonQuery = (query: VideoQuery) =>
+  isSeasonQuery(query) ? query.seriesQuery : query
