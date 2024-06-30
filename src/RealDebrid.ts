@@ -21,7 +21,7 @@ import {
   HttpServerResponse,
 } from "@effect/platform"
 import { ParseResult, Schema } from "@effect/schema"
-import { cacheWithSpan, magnetFromHash } from "./Utils.js"
+import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
 import { dataLoader } from "@effect/experimental/RequestResolver"
@@ -66,7 +66,13 @@ export const RealDebridLive = Effect.gen(function* () {
     )
 
   class AvailabilityRequest extends Request.Class<
-    Option.Option<string>,
+    Option.Option<
+      Array<{
+        readonly fileNumber: string
+        readonly fileName: string
+        readonly fileSize: number
+      }>
+    >,
     HttpClientError.HttpClientError | ParseResult.ParseError,
     { infoHash: string }
   > {}
@@ -83,8 +89,14 @@ export const RealDebridLive = Effect.gen(function* () {
             request => {
               const hash = request.infoHash.toLowerCase()
               if (hash in availability && availability[hash].length > 0) {
-                const file = Object.keys(availability[hash][0])[0]
-                return Request.succeed(request, Option.some(file))
+                const files = Object.entries(availability[hash][0]).map(
+                  ([fileNumber, { filename, filesize }]) => ({
+                    fileNumber,
+                    fileName: filename,
+                    fileSize: filesize,
+                  }),
+                )
+                return Request.succeed(request, Option.some(files))
               }
               return Request.succeed(request, Option.none())
             },
@@ -127,32 +139,53 @@ export const RealDebridLive = Effect.gen(function* () {
   })
 
   yield* sources.registerEmbellisher({
-    transform: (stream, baseUrl) => {
-      if (!stream.infoHash) {
-        return Effect.succeed(stream)
-      }
-      return Effect.request(
+    transform: (stream, baseUrl) =>
+      Effect.request(
         new AvailabilityRequest({ infoHash: stream.infoHash }),
         AvailabilityResolver,
       ).pipe(
         Effect.withRequestCaching(true),
         Effect.map(
           Option.match({
-            onNone: () => stream,
-            onSome: file =>
-              new SourceStream({
-                ...stream,
-                url: new URL(
-                  `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file}`,
-                  baseUrl,
-                ).toString(),
-              }),
+            onNone: () => [],
+            onSome: files => {
+              if (stream._tag === "SourceStream") {
+                const file = files[0]
+                return [
+                  new SourceStream({
+                    ...stream,
+                    sizeBytes: files[0].fileSize,
+                    url: new URL(
+                      `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
+                      baseUrl,
+                    ).toString(),
+                  }),
+                ]
+              }
+              return files
+                .filter(file => file.fileSize > 10 * 1024 * 1024)
+                .map(
+                  file =>
+                    new SourceStream({
+                      ...stream,
+                      title: file.fileName,
+                      sizeBytes: file.fileSize,
+                      quality: qualityFromTitle(file.fileName),
+                      url: new URL(
+                        `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
+                        baseUrl,
+                      ).toString(),
+                    }),
+                )
+            },
           }),
         ),
         Effect.whenEffect(userIsPremium),
         Effect.flatten,
         Effect.tapErrorCause(Effect.logDebug),
-        Effect.orElseSucceed(() => stream),
+        Effect.orElseSucceed(() =>
+          stream._tag === "SourceStream" ? [stream] : [],
+        ),
         Effect.withSpan("RealDebrid.transform", {
           attributes: { infoHash: stream.infoHash },
         }),
@@ -160,8 +193,7 @@ export const RealDebridLive = Effect.gen(function* () {
           service: "RealDebrid",
           method: "transform",
         }),
-      )
-    },
+      ),
   })
 
   const router = yield* StremioRouter

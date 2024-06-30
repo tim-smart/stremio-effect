@@ -1,13 +1,4 @@
-import {
-  Array,
-  Console,
-  Context,
-  Data,
-  Effect,
-  Layer,
-  Option,
-  Schedule,
-} from "effect"
+import { Array, Context, Data, Effect, Layer, Option, Schedule } from "effect"
 import { cacheWithSpan } from "./Utils.js"
 import {
   HttpClient,
@@ -17,14 +8,13 @@ import {
 import * as S from "@effect/schema/Schema"
 import { EpisodeData, Tvdb } from "./Tvdb.js"
 import {
-  AbsoluteEpisodeQuery,
-  EpisodeQuery,
-  ImdbSeriesQuery,
+  AbsoluteSeasonQuery,
+  AbsoluteSeriesQuery,
+  ImdbAbsoluteSeriesQuery,
   MovieQuery,
-  SeasonEpisodeQuery,
+  SeasonQuery,
   SeriesQuery,
 } from "./Domain/VideoQuery.js"
-import { NonEmptyReadonlyArray } from "effect/Array"
 
 const make = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -142,8 +132,8 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   country: S.String,
   slug: S.String,
 }) {
-  get query() {
-    return new MovieQuery({ title: this.name })
+  get queries() {
+    return [new MovieQuery({ title: this.name })]
   }
 }
 
@@ -174,24 +164,22 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
       _ => _.season === season && _.episode === episode,
     )
   }
-  absoluteEpisodeQuery(
+  absoluteQueries(
     season: number,
     episode: number,
-  ): Option.Option<AbsoluteEpisodeQuery> {
+  ): Option.Option<Array<AbsoluteSeriesQuery | ImdbAbsoluteSeriesQuery>> {
     const index = this.videos
       .filter(_ => _.season > 0)
       .findIndex(_ => _.season === season && _.episode === episode)
     return index > 0
-      ? Option.some(new AbsoluteEpisodeQuery({ number: index + 1 }))
+      ? Option.some([
+          new AbsoluteSeriesQuery({ title: this.name, number: index + 1 }),
+          new ImdbAbsoluteSeriesQuery({
+            imdbId: this.imdb_id,
+            number: index + 1,
+          }),
+        ])
       : Option.none()
-  }
-  queries(season: number, episode: number): ReadonlyArray<SeriesQuery> {
-    return [
-      new SeriesQuery({
-        title: this.name,
-        episode: new SeasonEpisodeQuery({ season, episode }),
-      }),
-    ]
   }
 }
 
@@ -211,52 +199,37 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
   episode: number
   info: Option.Option<EpisodeData>
 }> {
-  get absoluteEpisodeQuery() {
+  get absoluteQueries() {
     return this.info.pipe(
-      Option.map(
-        info => new AbsoluteEpisodeQuery({ number: info.absoluteNumber }),
-      ),
+      Option.map(info => [
+        new AbsoluteSeriesQuery({
+          title: this.series.name,
+          number: info.absoluteNumber,
+        }),
+        new ImdbAbsoluteSeriesQuery({
+          imdbId: this.series.imdb_id,
+          number: info.absoluteNumber,
+        }),
+      ]),
       Option.orElse(() =>
-        this.series.absoluteEpisodeQuery(this.season, this.episode),
+        this.series.absoluteQueries(this.season, this.episode),
       ),
     )
   }
-  get episodeQueries(): NonEmptyReadonlyArray<EpisodeQuery> {
-    const season = new SeasonEpisodeQuery({
+  get queries() {
+    const series = new SeriesQuery({
+      title: this.series.name,
       season: this.season,
       episode: this.episode,
     })
-    return Option.match(this.absoluteEpisodeQuery, {
-      onSome: absolute => [absolute, season],
-      onNone: () => [season],
-    })
-  }
-  get absoluteQuery() {
-    return new SeriesQuery({
+    const season = new SeasonQuery({
       title: this.series.name,
-      episode: Option.getOrElse(
-        this.absoluteEpisodeQuery,
-        () =>
-          new SeasonEpisodeQuery({
-            season: this.season,
-            episode: this.episode,
-          }),
-      ),
+      season: this.season,
+      episode: this.episode,
     })
-  }
-  get queries() {
-    return this.episodeQueries.map(
-      episode =>
-        new SeriesQuery({
-          title: this.series.name,
-          episode,
-        }),
-    )
-  }
-  get imdbQuery() {
-    return new ImdbSeriesQuery({
-      imdbId: this.series.imdb_id,
-      episodeQueries: this.episodeQueries,
+    return Option.match(this.absoluteQueries, {
+      onNone: () => [series, season],
+      onSome: absolute => [...absolute, series, season],
     })
   }
 }
@@ -272,26 +245,10 @@ export class GeneralEpisodeResult extends Data.TaggedClass(
     return [
       new SeriesQuery({
         title: this.series.name,
-        episode: new SeasonEpisodeQuery({
-          season: this.season,
-          episode: this.episode,
-        }),
-      }),
-    ]
-  }
-  get episodeQueries() {
-    return Array.of(
-      new SeasonEpisodeQuery({
         season: this.season,
         episode: this.episode,
       }),
-    )
-  }
-  get imdbQuery() {
-    return new ImdbSeriesQuery({
-      imdbId: this.series.imdb_id,
-      episodeQueries: this.episodeQueries,
-    })
+    ]
   }
 }
 

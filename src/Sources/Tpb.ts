@@ -3,13 +3,17 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, identity, Layer, Stream } from "effect"
+import { Array, Effect, identity, Layer, Match, Stream } from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { StreamRequest } from "../Stremio.js"
-import { ImdbMovieQuery, ImdbVideoQuery } from "../Domain/VideoQuery.js"
+import {
+  ImdbMovieQuery,
+  ImdbVideoQuery,
+  VideoQuery,
+} from "../Domain/VideoQuery.js"
 import { Cinemeta } from "../Cinemeta.js"
 import { SourceStream } from "../Domain/SourceStream.js"
 
@@ -19,7 +23,7 @@ export const SourceTpbLive = Effect.gen(function* () {
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
   )
 
-  const searchCache = yield* cacheWithSpan({
+  const search = yield* cacheWithSpan({
     lookup: (query: ImdbVideoQuery) =>
       HttpClientRequest.get("/q.php", {
         urlParams: { q: query.asQuery },
@@ -27,50 +31,46 @@ export const SourceTpbLive = Effect.gen(function* () {
         client,
         SearchResult.decodeResponse,
         Effect.map(results => (results[0].id === "0" ? [] : results)),
+        Effect.withSpan("Source.Tpb.search", {
+          attributes: { query: query.asQuery },
+        }),
       ),
     capacity: 4096,
     timeToLive: "12 hours",
   })
 
-  const search = (query: ImdbVideoQuery) => {
-    const matcher = query.titleMatcher
-    return searchCache(query).pipe(
-      matcher._tag === "Some"
-        ? Effect.map(Array.filter(_ => matcher.value(_.name)))
-        : identity,
-      Effect.withSpan("Source.Tpb.Search", {
-        attributes: { query: query.asQuery },
-      }),
-    )
-  }
-
   const cinemeta = yield* Cinemeta
   yield* sources.register({
-    list: StreamRequest.$match({
-      Channel: () => Stream.empty,
-      Movie: ({ imdbId }) =>
-        search(new ImdbMovieQuery({ imdbId })).pipe(
-          Effect.map(Array.map(_ => _.asStream)),
-          Effect.tapErrorCause(Effect.logDebug),
-          Effect.orElseSucceed(() => []),
-          Effect.withSpan("Source.Tpb.Movie", { attributes: { imdbId } }),
-          Effect.map(Stream.fromIterable),
-          Stream.unwrap,
-        ),
-      Series: ({ imdbId, season, episode }) =>
-        cinemeta.lookupEpisode(imdbId, season, episode).pipe(
-          Effect.flatMap(result => search(result.imdbQuery)),
-          Effect.map(Array.map(_ => _.asStream)),
-          Effect.tapErrorCause(Effect.logDebug),
-          Effect.orElseSucceed(() => []),
-          Effect.withSpan("Source.Tpb.Series", {
-            attributes: { imdbId, season, episode },
-          }),
-          Effect.map(Stream.fromIterable),
-          Stream.unwrap,
-        ),
-      Tv: () => Stream.empty,
-    }),
+    list: Match.type<VideoQuery>().pipe(
+      // Match.tags({
+      // }),
+      Match.orElse(() => Stream.empty),
+    ),
+    // list: StreamRequest.$match({
+    //   Channel: () => Stream.empty,
+    //   Movie: ({ imdbId }) =>
+    //     search(new ImdbMovieQuery({ imdbId })).pipe(
+    //       Effect.map(Array.map(_ => _.asStream)),
+    //       Effect.tapErrorCause(Effect.logDebug),
+    //       Effect.orElseSucceed(() => []),
+    //       Effect.withSpan("Source.Tpb.Movie", { attributes: { imdbId } }),
+    //       Effect.map(Stream.fromIterable),
+    //       Stream.unwrap,
+    //     ),
+    //   Series: ({ imdbId, season, episode }) =>
+    //     cinemeta.lookupEpisode(imdbId, season, episode).pipe(
+    //       Effect.flatMap(result => search(result.imdbQuery)),
+    //       Effect.map(Array.map(_ => _.asStream)),
+    //       Effect.tapErrorCause(Effect.logDebug),
+    //       Effect.orElseSucceed(() => []),
+    //       Effect.withSpan("Source.Tpb.Series", {
+    //         attributes: { imdbId, season, episode },
+    //       }),
+    //       Effect.map(Stream.fromIterable),
+    //       Stream.unwrap,
+    //     ),
+    //   Tv: () => Stream.empty,
+    // }),
   })
 }).pipe(
   Layer.scopedDiscard,

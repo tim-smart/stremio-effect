@@ -3,8 +3,9 @@ import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize } from "../Utils.js"
 import * as Quality from "./Quality.js"
 
-export class SourceStream extends Data.Class<{
+export class SourceStream extends Data.TaggedClass("SourceStream")<{
   source: string
+  title: string
   infoHash: string
   magnetUri: string
   quality: string
@@ -40,3 +41,11 @@ export class SourceStream extends Data.Class<{
     }
   }
 }
+
+export class SourceSeason extends Data.TaggedClass("SourceSeason")<{
+  source: string
+  infoHash: string
+  magnetUri: string
+  seeds: number
+  peers: number
+}> {}
