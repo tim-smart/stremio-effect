@@ -1,5 +1,6 @@
 import {
   Array,
+  Chunk,
   Context,
   Data,
   Effect,
@@ -94,13 +95,16 @@ const make = Effect.gen(function* () {
   })
 
   const listUncached = (request: StreamRequest, baseUrl: URL) =>
+    // map request to queries
     queriesFromRequest(request).pipe(
       Stream.bindTo("query"),
       Stream.let("nonSeasonQuery", ({ query }) => nonSeasonQuery(query)),
+      // for each soucre run the queries
       Stream.bind("source", () => Stream.fromIterable(sources)),
       Stream.bind("sourceResult", ({ source, query }) => source.list(query), {
         concurrency: "unbounded",
       }),
+      // filter out non matches
       Stream.filter(({ sourceResult, query }) => {
         if (sourceResult.verified) {
           return true
@@ -109,6 +113,7 @@ const make = Effect.gen(function* () {
           ? query.titleMatcher.value(sourceResult.title)
           : true
       }),
+      // embellish the results
       embellishers.size === 0
         ? Stream.bind("result", ({ sourceResult }) =>
             sourceResult._tag === "SourceStream"
@@ -124,6 +129,7 @@ const make = Effect.gen(function* () {
               ),
             { concurrency: "unbounded" },
           ),
+      // filter out non matches
       Stream.filter(({ nonSeasonQuery, result }) => {
         if (result.verified) {
           return true
@@ -132,6 +138,21 @@ const make = Effect.gen(function* () {
           ? nonSeasonQuery.titleMatcher.value(result.title)
           : true
       }),
+      // only keep unique results
+      Stream.chunks,
+      Stream.mapAccum(new Set<string>(), (hashes, chunk) => {
+        const filtered = Chunk.filter(chunk, ({ result }) => {
+          const hash = result.infoHash.toLowerCase()
+          if (hashes.has(hash)) {
+            return false
+          }
+          hashes.add(hash)
+          return true
+        })
+        return [hashes, filtered]
+      }),
+      Stream.flattenChunks,
+      // group by quality and return
       Stream.map(_ => _.result),
       Stream.groupByKey(_ => _.quality),
       GroupBy.evaluate((_, stream) => Stream.take(stream, 3)),
