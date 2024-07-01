@@ -71,15 +71,11 @@ export class EpisodeData extends S.Class<EpisodeData>("Data")({
   id: S.Number,
   seriesId: S.Number,
   name: S.String,
-  aired: S.String,
-  runtime: S.Number,
   isMovie: S.Number,
   seasons: S.Array(Season),
   number: S.Number,
   absoluteNumber: S.Number,
   seasonNumber: S.Number,
-  lastUpdated: S.String,
-  finaleType: S.Union(S.Null, S.String),
   year: S.String,
 }) {}
 
