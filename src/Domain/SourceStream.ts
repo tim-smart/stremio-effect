@@ -1,6 +1,6 @@
 import { Data, Order } from "effect"
 import type * as Stremio from "stremio-addon-sdk"
-import { bytesToSize } from "../Utils.js"
+import { bytesToSize, qualityFromTitle } from "../Utils.js"
 import * as Quality from "./Quality.js"
 
 export class SourceStream extends Data.TaggedClass("SourceStream")<{
@@ -51,4 +51,6 @@ export class SourceSeason extends Data.TaggedClass("SourceSeason")<{
   seeds: number
   peers: number
   verified?: boolean
-}> {}
+}> {
+  readonly quality = qualityFromTitle(this.title)
+}

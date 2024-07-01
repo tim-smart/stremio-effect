@@ -179,7 +179,7 @@ export const RealDebridLive = Effect.gen(function* () {
                       ...stream,
                       title: file.fileName,
                       sizeBytes: file.fileSize,
-                      quality: qualityFromTitle(file.fileName),
+                      quality: stream.quality,
                       url: new URL(
                         `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
                         baseUrl,
