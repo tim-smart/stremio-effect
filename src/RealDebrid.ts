@@ -7,6 +7,7 @@ import {
   flow,
   Layer,
   Option,
+  pipe,
   Record,
   Redacted,
   Request,
@@ -23,7 +24,7 @@ import {
   HttpServerResponse,
 } from "@effect/platform"
 import { ParseResult, Schema } from "@effect/schema"
-import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "./Utils.js"
+import { cacheWithSpan, magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
 import { dataLoader } from "@effect/experimental/RequestResolver"
@@ -98,14 +99,19 @@ export const RealDebridLive = Effect.gen(function* () {
                 for (const files of availability[hash]) {
                   Object.assign(fileRecord, files)
                 }
-                const files = Object.entries(fileRecord).map(
-                  ([fileNumber, { filename, filesize }]) => ({
-                    fileNumber,
-                    fileName: filename,
-                    fileSize: filesize,
-                  }),
+                return Request.succeed(
+                  request,
+                  pipe(
+                    Record.toEntries(fileRecord),
+                    Array.map(([fileNumber, { filename, filesize }]) => ({
+                      fileNumber,
+                      fileName: filename,
+                      fileSize: filesize,
+                    })),
+                    Array.filter(_ => _.fileSize > 10 * 1024 * 1024),
+                    Option.liftPredicate(Array.isNonEmptyArray),
+                  ),
                 )
-                return Request.succeed(request, Option.some(files))
               }
               return Request.succeed(request, Option.none())
             },
@@ -171,21 +177,19 @@ export const RealDebridLive = Effect.gen(function* () {
                   }),
                 ]
               }
-              return files
-                .filter(file => file.fileSize > 10 * 1024 * 1024)
-                .map(
-                  file =>
-                    new SourceStream({
-                      ...stream,
-                      title: file.fileName,
-                      sizeBytes: file.fileSize,
-                      quality: stream.quality,
-                      url: new URL(
-                        `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
-                        baseUrl,
-                      ).toString(),
-                    }),
-                )
+              return files.map(
+                file =>
+                  new SourceStream({
+                    ...stream,
+                    title: file.fileName,
+                    sizeBytes: file.fileSize,
+                    quality: stream.quality,
+                    url: new URL(
+                      `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
+                      baseUrl,
+                    ).toString(),
+                  }),
+              )
             },
           }),
         ),
