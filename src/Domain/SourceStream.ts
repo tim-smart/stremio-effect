@@ -30,12 +30,21 @@ export class SourceStream extends Data.TaggedClass("SourceStream")<{
     return "0B"
   }
 
+  get qualityFormatted() {
+    switch (this.quality) {
+      case "2160p":
+        return "4K"
+      default:
+        return this.quality
+    }
+  }
+
   get asStremio(): Stremio.Stream {
     return {
       url: this.url,
       infoHash: this.infoHash,
       title: `${this.sizeFormatted}  ⬆️ ${this.seeds}`,
-      name: `${this.quality}${this.url ? ` ✨` : ""}`,
+      name: `${this.qualityFormatted}${this.url ? ` ✨` : ""}`,
       behaviorHints: {
         bingeGroup: `effect-${this.quality}`,
       } as any,
