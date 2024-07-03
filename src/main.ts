@@ -9,6 +9,7 @@ import { TracingLive } from "./Tracing.js"
 import { AllSourcesDebrid } from "./Sources/All.js"
 import { createServer } from "node:http"
 import * as Net from "node:net"
+import { PersistenceLive } from "./Persistence.js"
 
 // Fixes issues with timeouts
 Net.setDefaultAutoSelectFamily(false)
@@ -32,6 +33,7 @@ const StremioLive = Stremio.layerAddon.pipe(
   ),
   Layer.provide(AllSourcesDebrid),
   Layer.provide(NodeHttpClient.layerUndici),
+  Layer.provide(PersistenceLive),
 )
 
 const MainLive = StremioLive.pipe(

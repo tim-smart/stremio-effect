@@ -1,5 +1,14 @@
-import { Array, Context, Data, Effect, Layer, Option, Schedule } from "effect"
-import { cacheWithSpan } from "./Utils.js"
+import {
+  Array,
+  Context,
+  Data,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  PrimaryKey,
+  Schedule,
+} from "effect"
 import {
   HttpClient,
   HttpClientRequest,
@@ -14,6 +23,9 @@ import {
   SeasonQuery,
   SeriesQuery,
 } from "./Domain/VideoQuery.js"
+import * as PersistedCache from "@effect/experimental/PersistedCache"
+import { Schema, Serializable } from "@effect/schema"
+import * as TimeToLive from "@effect/experimental/TimeToLive"
 
 const make = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -34,29 +46,62 @@ const make = Effect.gen(function* () {
     ),
   )
 
-  const lookupMovie = yield* cacheWithSpan({
-    lookup: (imdbID: string) =>
-      HttpClientRequest.get(`/movie/${imdbID}.json`).pipe(
+  class LookupMovie extends Data.Class<{ imdbId: string }> {
+    [PrimaryKey.symbol]() {
+      return this.imdbId
+    }
+    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
+      return exit._tag === "Success" ? "1 week" : "5 minutes"
+    }
+    get [Serializable.symbolResult]() {
+      return {
+        Success: MovieMeta,
+        Failure: Schema.Never,
+      }
+    }
+  }
+
+  const lookupMovieCache = yield* PersistedCache.make({
+    storeId: "Cinemeta.lookupMovie",
+    lookup: (req: LookupMovie) =>
+      HttpClientRequest.get(`/movie/${req.imdbId}.json`).pipe(
         client,
         Movie.decodeResponse,
         Effect.map(_ => _.meta),
-        Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbID } }),
+        Effect.orDie,
+        Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
       ),
-    capacity: 1024,
-    timeToLive: "3 days",
   })
+  const lookupMovie = (imdbID: string) =>
+    lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
 
-  const lookupSeries = yield* cacheWithSpan({
-    lookup: (imdbID: string) =>
+  class LookupSeries extends Data.Class<{ imdbID: string }> {
+    [PrimaryKey.symbol]() {
+      return this.imdbID
+    }
+    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
+      return exit._tag === "Success" ? "12 hours" : "5 minutes"
+    }
+    get [Serializable.symbolResult]() {
+      return {
+        Success: SeriesMeta,
+        Failure: Schema.Never,
+      }
+    }
+  }
+  const lookupSeriesCache = yield* PersistedCache.make({
+    storeId: "Cinemeta.lookupSeries",
+    lookup: ({ imdbID }: LookupSeries) =>
       HttpClientRequest.get(`/series/${imdbID}.json`).pipe(
         client,
         Series.decodeResponse,
         Effect.map(_ => _.meta),
+        Effect.orDie,
         Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
       ),
-    capacity: 1024,
-    timeToLive: "12 hours",
   })
+  const lookupSeries = (imdbID: string) =>
+    lookupSeriesCache.get(new LookupSeries({ imdbID }))
 
   const tvdb = yield* Tvdb
   const lookupEpisode = (imdbID: string, season: number, episode: number) =>

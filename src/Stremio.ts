@@ -30,6 +30,13 @@ export type StreamRequest = Data.TaggedEnum<{
   Tv: { readonly imdbId: string }
 }>
 export const StreamRequest = Data.taggedEnum<StreamRequest>()
+export const streamRequestId = StreamRequest.$match({
+  Channel: ({ id }) => `Channel:${id}`,
+  Movie: ({ imdbId }) => `Movie:${imdbId}`,
+  Series: ({ imdbId, season, episode }) =>
+    `Series:${imdbId}:${season}:${episode}`,
+  Tv: ({ imdbId }) => `Tv:${imdbId}`,
+})
 
 export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
   StremioManifest,

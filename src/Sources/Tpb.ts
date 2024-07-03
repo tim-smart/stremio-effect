@@ -8,7 +8,7 @@ import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
 import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
-import { ImdbVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 
 export const SourceTpbLive = Effect.gen(function* () {

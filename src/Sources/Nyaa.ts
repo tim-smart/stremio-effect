@@ -3,16 +3,22 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, flow, Layer, Match, pipe, Stream } from "effect"
+import {
+  Array,
+  Effect,
+  flow,
+  Layer,
+  Match,
+  pipe,
+  Schedule,
+  Stream,
+} from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
-import {
-  cacheWithSpan,
-  infoHashFromMagnet,
-  qualityFromTitle,
-} from "../Utils.js"
+import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceStream } from "../Domain/SourceStream.js"
+import { PersistedCache } from "@effect/experimental"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -20,9 +26,19 @@ export const SourceNyaaLive = Effect.gen(function* () {
     HttpClient.mapRequest(
       flow(HttpClientRequest.prependUrl("https://nyaa.si")),
     ),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" &&
+          (err.response.status >= 500 || err.response.status === 429),
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
+    ),
   )
 
-  const searchCache = yield* cacheWithSpan({
+  const searchCache = yield* PersistedCache.make({
+    storeId: "Source.Nyaa.search",
     lookup: (request: AbsoluteSeriesQuery) =>
       HttpClientRequest.get("/").pipe(
         HttpClientRequest.setUrlParams({
@@ -52,10 +68,9 @@ export const SourceNyaaLive = Effect.gen(function* () {
             ),
           ),
         ),
+        Effect.orDie,
         Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
       ),
-    capacity: 4096,
-    timeToLive: "12 hours",
   })
 
   const parseResults = (html: string) => {
@@ -86,7 +101,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
       Match.tag("AbsoluteSeriesQuery", query =>
-        searchCache(query).pipe(
+        searchCache.get(query).pipe(
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Nyaa.Series", {

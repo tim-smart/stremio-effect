@@ -2,20 +2,26 @@ import { Data, Order } from "effect"
 import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize, qualityFromTitle } from "../Utils.js"
 import * as Quality from "./Quality.js"
+import { Schema } from "@effect/schema"
 
-export class SourceStream extends Data.TaggedClass("SourceStream")<{
-  source: string
-  title: string
-  infoHash: string
-  magnetUri: string
-  quality: string
-  seeds: number
-  peers: number
-  sizeBytes?: number
-  sizeDisplay?: string
-  url?: string
-  verified?: boolean
-}> {
+export class SourceStream extends Schema.TaggedClass<SourceStream>()(
+  "SourceStream",
+  {
+    source: Schema.String,
+    title: Schema.String,
+    infoHash: Schema.String,
+    magnetUri: Schema.String,
+    quality: Schema.String,
+    seeds: Schema.Number,
+    peers: Schema.Number,
+    sizeBytes: Schema.optional(Schema.Number),
+    sizeDisplay: Schema.optional(Schema.String),
+    url: Schema.optional(Schema.String),
+    verified: Schema.optional(Schema.Boolean),
+  },
+) {
+  static Array = Schema.Array(this)
+
   static Order = Order.struct({
     quality: Quality.Order,
     seeds: Order.reverse(Order.number),

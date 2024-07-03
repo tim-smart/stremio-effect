@@ -5,14 +5,15 @@ import {
   Data,
   Effect,
   Equal,
+  Exit,
   GroupBy,
   Hash,
   Iterable,
   Layer,
+  PrimaryKey,
   Stream,
 } from "effect"
-import { StreamRequest } from "./Stremio.js"
-import { cacheWithSpan } from "./Utils.js"
+import { StreamRequest, streamRequestId } from "./Stremio.js"
 import { SourceSeason, SourceStream } from "./Domain/SourceStream.js"
 import {
   ChannelQuery,
@@ -24,6 +25,9 @@ import {
   VideoQuery,
 } from "./Domain/VideoQuery.js"
 import { Cinemeta } from "./Cinemeta.js"
+import * as PersistedCache from "@effect/experimental/PersistedCache"
+import { Schema, Serializable } from "@effect/schema"
+import * as TimeToLive from "@effect/experimental/TimeToLive"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
@@ -160,25 +164,39 @@ const make = Effect.gen(function* () {
       Effect.map(Array.sort(SourceStream.Order)),
     )
 
-  class ListRequest extends Data.Class<{
-    readonly request: StreamRequest
-    readonly baseUrl: URL
-  }> {
+  class ListRequest
+    extends Data.Class<{
+      readonly request: StreamRequest
+      readonly baseUrl: URL
+    }>
+    implements PrimaryKey.PrimaryKey
+  {
     [Equal.symbol](that: ListRequest): boolean {
       return Equal.equals(this.request, that.request)
     }
     [Hash.symbol]() {
       return Hash.hash(this.request)
     }
+    [PrimaryKey.symbol]() {
+      return streamRequestId(this.request)
+    }
+    get [Serializable.symbolResult]() {
+      return {
+        Success: SourceStream.Array,
+        Failure: Schema.String,
+      } as const
+    }
+    [TimeToLive.symbol](exit: Exit.Exit<any, any>) {
+      return exit._tag === "Success" ? "12 hours" : "1 minute"
+    }
   }
-  const listCache = yield* cacheWithSpan({
+  const listCache = yield* PersistedCache.make({
+    storeId: "Sources.listCache",
     lookup: (request: ListRequest) =>
       listUncached(request.request, request.baseUrl),
-    capacity: 4096,
-    timeToLive: "12 hours",
   })
   const list = (request: StreamRequest, baseUrl: URL) =>
-    listCache(new ListRequest({ request, baseUrl }))
+    listCache.get(new ListRequest({ request, baseUrl }))
 
   return { list, register, registerEmbellisher } as const
 })
@@ -187,7 +205,7 @@ export class Sources extends Context.Tag("stremio/Sources")<
   Sources,
   Effect.Effect.Success<typeof make>
 >() {
-  static Live = Layer.effect(Sources, make).pipe(Layer.provide(Cinemeta.Live))
+  static Live = Layer.scoped(Sources, make).pipe(Layer.provide(Cinemeta.Live))
 }
 
 // domain
