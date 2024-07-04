@@ -2,7 +2,6 @@ import {
   Config,
   Context,
   Data,
-  Duration,
   Effect,
   Exit,
   flow,
@@ -81,6 +80,7 @@ const make = Effect.gen(function* () {
         Effect.map(_ => _.data),
         Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
       ),
+    inMemoryCapacity: 16,
   })
   const lookupEpisode = (id: number) =>
     lookupEpisodeCache.get(new LookupEpisode({ id }))
@@ -92,7 +92,7 @@ export class Tvdb extends Context.Tag("Tvdb")<
   Tvdb,
   Effect.Effect.Success<typeof make>
 >() {
-  static Live = Layer.effect(Tvdb, make)
+  static Live = Layer.scoped(Tvdb, make)
 }
 
 export class Season extends S.Class<Season>("Season")({

@@ -71,6 +71,7 @@ const make = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
       ),
+    inMemoryCapacity: 8,
   })
   const lookupMovie = (imdbID: string) =>
     lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
@@ -99,6 +100,7 @@ const make = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
       ),
+    inMemoryCapacity: 8,
   })
   const lookupSeries = (imdbID: string) =>
     lookupSeriesCache.get(new LookupSeries({ imdbID }))
@@ -138,7 +140,7 @@ export class Cinemeta extends Context.Tag("Cinemeta")<
   Cinemeta,
   Effect.Effect.Success<typeof make>
 >() {
-  static Live = Layer.effect(Cinemeta, make).pipe(Layer.provide(Tvdb.Live))
+  static Live = Layer.scoped(Cinemeta, make).pipe(Layer.provide(Tvdb.Live))
 }
 
 export class Video extends S.Class<Video>("Video")({

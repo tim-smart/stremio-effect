@@ -4,30 +4,33 @@ import {
   ConfigProvider,
   Data,
   Effect,
+  Exit,
   flow,
   Layer,
   Option,
   pipe,
+  PrimaryKey,
   Record,
   Redacted,
   Request,
   RequestResolver,
+  Schedule,
   Stream,
 } from "effect"
 import { Sources } from "./Sources.js"
 import {
   HttpClient,
-  HttpClientError,
   HttpClientRequest,
   HttpClientResponse,
   HttpRouter,
   HttpServerResponse,
 } from "@effect/platform"
-import { ParseResult, Schema } from "@effect/schema"
+import { Schema, Serializable } from "@effect/schema"
 import { cacheWithSpan, magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
-import { dataLoader } from "@effect/experimental/RequestResolver"
+import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
+import { TimeToLive } from "@effect/experimental"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -38,6 +41,14 @@ export const RealDebridLive = Effect.gen(function* () {
         HttpClientRequest.prependUrl("https://api.real-debrid.com/rest/1.0"),
         HttpClientRequest.bearerToken(Redacted.value(apiKey)),
       ),
+    ),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" && err.response.status >= 429,
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
     ),
   )
   const user = yield* HttpClientRequest.get("/user").pipe(
@@ -69,16 +80,23 @@ export const RealDebridLive = Effect.gen(function* () {
     )
 
   class AvailabilityRequest extends Request.Class<
-    Option.Option<
-      Array<{
-        readonly fileNumber: string
-        readonly fileName: string
-        readonly fileSize: number
-      }>
-    >,
-    HttpClientError.HttpClientError | ParseResult.ParseError,
+    Option.Option<Array<AvailabilityFile>>,
+    never,
     { infoHash: string }
-  > {}
+  > {
+    [PrimaryKey.symbol]() {
+      return this.infoHash
+    }
+    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
+      return exit._tag === "Success" ? "1 week" : "5 minutes"
+    }
+    get [Serializable.symbolResult]() {
+      return {
+        Success: AvailabilityFile.OptionArray,
+        Failure: Schema.Never,
+      }
+    }
+  }
   const AvailabilityResolver = yield* RequestResolver.makeBatched(
     (requests: Array<AvailabilityRequest>) =>
       HttpClientRequest.get(
@@ -118,11 +136,15 @@ export const RealDebridLive = Effect.gen(function* () {
             { discard: true },
           ),
         ),
+        Effect.orDie,
         Effect.catchAllCause(cause =>
           Effect.forEach(requests, Request.failCause(cause)),
         ),
       ),
-  ).pipe(dataLoader({ window: 150 }))
+  ).pipe(
+    persisted("RealDebrid.Availability"),
+    Effect.flatMap(dataLoader({ window: 200 })),
+  )
 
   const selectFiles = (id: string, files: ReadonlyArray<string>) =>
     HttpClientRequest.post(`/torrents/selectFiles/${id}`).pipe(
@@ -298,3 +320,13 @@ const UnrestrictLinkResponse = Schema.Struct({
 const decodeUnrestrictLinkResponse = HttpClientResponse.schemaBodyJsonScoped(
   UnrestrictLinkResponse,
 )
+
+class AvailabilityFile extends Schema.Class<AvailabilityFile>(
+  "AvailabilityFile",
+)({
+  fileNumber: Schema.String,
+  fileName: Schema.String,
+  fileSize: Schema.Number,
+}) {
+  static OptionArray = Schema.Option(Schema.Array(this))
+}

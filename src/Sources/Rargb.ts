@@ -115,6 +115,7 @@ export const SourceRargbLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
       ),
+    inMemoryCapacity: 8,
   })
 
   const searchStream = (request: TitleVideoQuery) =>

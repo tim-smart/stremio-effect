@@ -46,6 +46,9 @@
               }
             ];
           };
+          services.redis.redis = {
+            enable = true;
+          };
 
           settings.processes.tsx = {
             command = "tsx --watch src/main.ts";

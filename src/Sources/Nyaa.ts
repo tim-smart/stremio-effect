@@ -71,6 +71,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
       ),
+    inMemoryCapacity: 8,
   })
 
   const parseResults = (html: string) => {

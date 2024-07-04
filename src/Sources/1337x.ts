@@ -116,6 +116,7 @@ export const Source1337xLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.1337x.search", { attributes: { ...request } }),
       ),
+    inMemoryCapacity: 8,
   })
 
   const searchStream = (request: TitleVideoQuery) =>

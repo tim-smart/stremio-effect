@@ -194,6 +194,7 @@ const make = Effect.gen(function* () {
     storeId: "Sources.listCache",
     lookup: (request: ListRequest) =>
       listUncached(request.request, request.baseUrl),
+    inMemoryCapacity: 16,
   })
   const list = (request: StreamRequest, baseUrl: URL) =>
     listCache.get(new ListRequest({ request, baseUrl }))
