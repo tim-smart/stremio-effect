@@ -164,13 +164,10 @@ const make = Effect.gen(function* () {
       Effect.map(Array.sort(SourceStream.Order)),
     )
 
-  class ListRequest
-    extends Data.Class<{
-      readonly request: StreamRequest
-      readonly baseUrl: URL
-    }>
-    implements PrimaryKey.PrimaryKey
-  {
+  class ListRequest extends Data.Class<{
+    readonly request: StreamRequest
+    readonly baseUrl: URL
+  }> {
     [Equal.symbol](that: ListRequest): boolean {
       return Equal.equals(this.request, that.request)
     }
@@ -184,10 +181,11 @@ const make = Effect.gen(function* () {
       return {
         Success: SourceStream.Array,
         Failure: Schema.String,
-      } as const
+      }
     }
-    [TimeToLive.symbol](exit: Exit.Exit<any, any>) {
-      return exit._tag === "Success" ? "12 hours" : "1 minute"
+    [TimeToLive.symbol](exit: Exit.Exit<Array<SourceStream>, any>) {
+      if (exit._tag === "Failure") return "1 minute"
+      return exit.value.length > 5 ? "3 days" : "6 hours"
     }
   }
   const listCache = yield* PersistedCache.make({

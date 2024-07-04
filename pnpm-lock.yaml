@@ -13,8 +13,8 @@ importers:
         version: 5.4.1
     devDependencies:
       '@effect/experimental':
-        specifier: ^0.17.20
-        version: 0.17.20(@effect/platform-node@0.53.18(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(effect@3.4.6))(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6)(ioredis@5.4.1)(ws@8.18.0)
+        specifier: ^0.17.21
+        version: 0.17.21(@effect/platform-node@0.53.18(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(effect@3.4.6))(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6)(ioredis@5.4.1)(ws@8.18.0)
       '@effect/opentelemetry':
         specifier: ^0.34.29
         version: 0.34.29(@opentelemetry/api@1.9.0)(@opentelemetry/resources@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-node@1.25.1(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.25.1)(effect@3.4.6)
@@ -66,8 +66,8 @@ importers:
 
 packages:
 
-  '@effect/experimental@0.17.20':
-    resolution: {integrity: sha512-7CflMHZjHSmuIf5k3Rb2odzwfTb0g/Q24C1zHjjKqOzMVUpxj8Cc/XAd4SokFD8mNCKTDURGy3wIGlds2TXcCg==}
+  '@effect/experimental@0.17.21':
+    resolution: {integrity: sha512-RkRZwMUhXe4ElSBoRV+8JQR9bHKCAmgEvr1kZxjQXIqhMqobBpAFm/SlxII6TXb4gb5dQgWPO+1tVYa/8Tkkdg==}
     peerDependencies:
       '@effect/platform': ^0.58.19
       '@effect/platform-node': ^0.53.18
@@ -1660,7 +1660,7 @@ packages:
 
 snapshots:
 
-  '@effect/experimental@0.17.20(@effect/platform-node@0.53.18(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(effect@3.4.6))(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6)(ioredis@5.4.1)(ws@8.18.0)':
+  '@effect/experimental@0.17.21(@effect/platform-node@0.53.18(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(effect@3.4.6))(@effect/platform@0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6))(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6)(ioredis@5.4.1)(ws@8.18.0)':
     dependencies:
       '@effect/platform': 0.58.19(@effect/schema@0.68.16(effect@3.4.6))(effect@3.4.6)
       '@effect/schema': 0.68.16(effect@3.4.6)

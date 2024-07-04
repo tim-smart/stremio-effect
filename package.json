@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@effect/experimental": "^0.17.20",
+    "@effect/experimental": "^0.17.21",
     "@effect/opentelemetry": "^0.34.29",
     "@effect/platform": "^0.58.19",
     "@effect/platform-node": "^0.53.18",
