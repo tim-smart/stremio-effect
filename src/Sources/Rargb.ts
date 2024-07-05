@@ -18,11 +18,7 @@ import {
 } from "effect"
 import * as Cheerio from "cheerio"
 import { Sources } from "../Sources.js"
-import {
-  cacheWithSpan,
-  infoHashFromMagnet,
-  qualityFromTitle,
-} from "../Utils.js"
+import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { PersistedCache, TimeToLive } from "@effect/experimental"
@@ -44,21 +40,17 @@ export const SourceRargbLive = Effect.gen(function* () {
     ),
   )
 
-  const magnetLink = yield* cacheWithSpan({
-    lookup: (url: string) =>
-      HttpClientRequest.get(url).pipe(
-        client,
-        HttpClientResponse.text,
-        Effect.flatMap(html => {
-          const $ = Cheerio.load(html)
-          return Effect.fromNullable(
-            $("td.lista a[href^='magnet:']").attr("href"),
-          )
-        }),
-      ),
-    capacity: 4096,
-    timeToLive: Duration.infinity,
-  })
+  const magnetLink = (url: string) =>
+    HttpClientRequest.get(url).pipe(
+      client,
+      HttpClientResponse.text,
+      Effect.flatMap(html => {
+        const $ = Cheerio.load(html)
+        return Effect.fromNullable(
+          $("td.lista a[href^='magnet:']").attr("href"),
+        )
+      }),
+    )
 
   const parseResults = (html: string) => {
     const $ = Cheerio.load(html)

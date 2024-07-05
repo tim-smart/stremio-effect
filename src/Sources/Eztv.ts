@@ -4,23 +4,44 @@ import {
   HttpClientResponse,
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
-import { Data, Effect, Layer, Match, Option, Stream } from "effect"
+import { Effect, Exit, Layer, Match, Option, Schedule, Stream } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { Sources } from "../Sources.js"
-import { cacheWithSpan, qualityFromTitle } from "../Utils.js"
+import { qualityFromTitle } from "../Utils.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
+import { Schema } from "@effect/schema"
+import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const SourceEztvLive = Effect.gen(function* () {
   const sources = yield* Sources
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" && err.response.status >= 429,
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
+    ),
   )
 
-  class GetPage extends Data.Class<{
-    imdbId: string
-    page: number
-  }> {}
-  const getPageCache = yield* cacheWithSpan({
+  class GetPage extends Schema.TaggedRequest<GetPage>()(
+    "GetPage",
+    Schema.Never,
+    GetTorrents,
+    {
+      imdbId: Schema.String,
+      page: Schema.Number,
+    },
+  ) {
+    [TimeToLive.symbol](exit: Exit.Exit<GetTorrents, unknown>) {
+      if (exit._tag === "Failure") return "5 minutes"
+      return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
+    }
+  }
+  const getPageCache = yield* PersistedCache.make({
+    storeId: "Source.Eztv.getPage",
     lookup: (_: GetPage) =>
       HttpClientRequest.get("/get-torrents").pipe(
         HttpClientRequest.setUrlParams({
@@ -30,25 +51,26 @@ export const SourceEztvLive = Effect.gen(function* () {
         }),
         client,
         GetTorrents.decodeResponse,
+        Effect.orDie,
       ),
-    capacity: 4096,
-    timeToLive: "12 hours",
   })
 
   const stream = (imdbId: string) =>
     Stream.paginateChunkEffect(1, page =>
-      getPageCache(new GetPage({ imdbId, page })).pipe(
-        Effect.map(
-          _ =>
-            [
-              _.torrents,
-              Option.some(page + 1).pipe(
-                Option.filter(() => _.torrents.length < _.limit),
-              ),
-            ] as const,
+      getPageCache
+        .get(new GetPage({ imdbId, page }))
+        .pipe(
+          Effect.map(
+            _ =>
+              [
+                _.torrents,
+                Option.some(page + 1).pipe(
+                  Option.filter(() => _.torrents.length < _.limit),
+                ),
+              ] as const,
+          ),
         ),
-      ),
-    ).pipe(Stream.catchTag("ParseError", () => Stream.empty))
+    ).pipe(Stream.catchAllCause(() => Stream.empty))
 
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(

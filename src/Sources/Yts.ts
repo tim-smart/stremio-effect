@@ -3,12 +3,14 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Duration, Effect, Layer, Match, Stream } from "effect"
+import { Effect, Exit, Layer, Match, Schedule, Stream } from "effect"
 import { Sources } from "../Sources.js"
 import * as S from "@effect/schema/Schema"
-import { cacheWithSpan, magnetFromHash } from "../Utils.js"
+import { magnetFromHash } from "../Utils.js"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
+import { Schema } from "@effect/schema"
+import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -17,23 +19,46 @@ export const SourceYtsLive = Effect.gen(function* () {
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl("https://yts.mx/api/v2"),
     ),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" && err.response.status >= 429,
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
+    ),
   )
 
-  const details = yield* cacheWithSpan({
-    lookup: (imdbId: string) =>
+  class DetailsRequest extends Schema.TaggedRequest<DetailsRequest>()(
+    "DetailsRequest",
+    Schema.Never,
+    Movie,
+    { imdbId: Schema.String },
+  ) {
+    [TimeToLive.symbol](exit: Exit.Exit<Array<Movie>, unknown>) {
+      if (exit._tag === "Failure") return "5 minutes"
+      return exit.value.length > 0 ? "3 days" : "6 hours"
+    }
+  }
+
+  const details = yield* PersistedCache.make({
+    storeId: "Source.Yts.details",
+    lookup: ({ imdbId }: DetailsRequest) =>
       HttpClientRequest.get("/movie_details.json").pipe(
         HttpClientRequest.setUrlParam("imdb_id", imdbId),
         client,
         MovieDetails.decodeResponse,
+        Effect.orDie,
         Effect.map(_ => _.data.movie),
+        Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
       ),
-    capacity: 4096,
-    timeToLive: Duration.days(10),
+    inMemoryCapacity: 8,
   })
+
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", ({ imdbId }) =>
-        details(imdbId).pipe(
+        details.get(new DetailsRequest({ imdbId })).pipe(
           Effect.map(_ => _.streams),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),

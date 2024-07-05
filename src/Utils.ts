@@ -1,15 +1,4 @@
-import {
-  Cache,
-  ConfigProvider,
-  Data,
-  Duration,
-  Effect,
-  Equal,
-  Hash,
-  identity,
-  Option,
-  Tracer,
-} from "effect"
+import { ConfigProvider } from "effect"
 
 export const magnetFromHash = (hash: string) =>
   `magnet:?xt=urn:btih:${hash}&${trackers}`
@@ -50,44 +39,4 @@ export const configProviderNested = (prefix: string) =>
   ConfigProvider.fromEnv().pipe(
     ConfigProvider.nested(prefix),
     ConfigProvider.constantCase,
-  )
-
-class SpanRequest<K> extends Data.Class<{
-  readonly span: Option.Option<Tracer.AnySpan>
-  readonly request: K
-}> {
-  [Equal.symbol](that: SpanRequest<K>): boolean {
-    return Equal.equals(this.request, that.request)
-  }
-  [Hash.symbol]() {
-    return Hash.hash(this.request)
-  }
-}
-
-export const cacheWithSpan = <K, A, E, R>(options: {
-  readonly capacity: number
-  readonly timeToLive: Duration.DurationInput
-  readonly lookup: Cache.Lookup<K, A, E, R>
-}) =>
-  Cache.makeWith({
-    capacity: options.capacity,
-    timeToLive: exit =>
-      exit._tag === "Success" ? options.timeToLive : "5 minutes",
-    lookup: (req: SpanRequest<K>) =>
-      options
-        .lookup(req.request)
-        .pipe(
-          req.span._tag === "Some"
-            ? Effect.withParentSpan(req.span.value)
-            : identity,
-        ),
-  }).pipe(
-    Effect.map(
-      cache => (req: K) =>
-        Effect.serviceOption(Tracer.ParentSpan).pipe(
-          Effect.flatMap(span =>
-            cache.get(new SpanRequest({ span, request: req })),
-          ),
-        ),
-    ),
   )

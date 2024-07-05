@@ -2,7 +2,6 @@ import {
   Array,
   Config,
   ConfigProvider,
-  Data,
   Effect,
   Exit,
   flow,
@@ -26,11 +25,11 @@ import {
   HttpServerResponse,
 } from "@effect/platform"
 import { Schema, Serializable } from "@effect/schema"
-import { cacheWithSpan, magnetFromHash } from "./Utils.js"
+import { magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
 import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
-import { TimeToLive } from "@effect/experimental"
+import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -160,19 +159,31 @@ export const RealDebridLive = Effect.gen(function* () {
       decodeUnrestrictLinkResponse,
     )
 
-  class ResolveRequest extends Data.Class<{
-    infoHash: string
-    file: string
-  }> {}
-  const resolve = yield* cacheWithSpan({
-    capacity: 1024,
-    timeToLive: "1 hour",
+  class ResolveRequest extends Schema.TaggedRequest<ResolveRequest>()(
+    "ResolveRequest",
+    Schema.Never,
+    UnrestrictLinkResponse,
+    {
+      infoHash: Schema.String,
+      file: Schema.String,
+    },
+  ) {
+    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
+      return exit._tag === "Success" ? "1 hour" : "5 minutes"
+    }
+  }
+  const resolve = yield* PersistedCache.make({
+    storeId: "RealDebrid.resolve",
     lookup: (request: ResolveRequest) =>
       addMagnet(magnetFromHash(request.infoHash)).pipe(
         Effect.tap(_ => selectFiles(_.id, [request.file])),
         Effect.andThen(_ => getTorrentInfo(_.id)),
         Effect.andThen(info => unrestrictLink(info.links[0])),
+        Effect.tapErrorCause(Effect.log),
+        Effect.orDie,
+        Effect.withSpan("RealDebrid.resolve", { attributes: { request } }),
       ),
+    inMemoryCapacity: 4,
   })
 
   yield* sources.registerEmbellisher({
@@ -243,7 +254,7 @@ export const RealDebridLive = Effect.gen(function* () {
     "/real-debrid/:hash/:file",
     Effect.gen(function* () {
       const { hash: infoHash, file } = yield* resolveParams
-      const url = yield* resolve(new ResolveRequest({ infoHash, file }))
+      const url = yield* resolve.get(new ResolveRequest({ infoHash, file }))
       return HttpServerResponse.empty({ status: 302 }).pipe(
         HttpServerResponse.setHeader("Location", url.download),
       )

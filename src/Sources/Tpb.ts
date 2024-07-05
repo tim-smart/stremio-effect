@@ -3,40 +3,62 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, Layer, Match, Stream } from "effect"
+import { Array, Effect, Exit, Layer, Match, Schedule, Stream } from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
-import { cacheWithSpan, magnetFromHash, qualityFromTitle } from "../Utils.js"
+import { magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
+import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
+    HttpClient.transformResponse(
+      Effect.retry({
+        while: err =>
+          err._tag === "ResponseError" && err.response.status >= 429,
+        times: 5,
+        schedule: Schedule.exponential(100),
+      }),
+    ),
   )
 
-  const search = yield* cacheWithSpan({
-    lookup: (imbdId: string) =>
+  class SearchRequest extends Schema.TaggedRequest<SearchRequest>()(
+    "SearchRequest",
+    Schema.Never,
+    Schema.Array(SearchResult),
+    { imdbId: Schema.String },
+  ) {
+    [TimeToLive.symbol](exit: Exit.Exit<Array<SearchResult>, unknown>) {
+      if (exit._tag === "Failure") return "5 minutes"
+      return exit.value.length > 0 ? "3 days" : "6 hours"
+    }
+  }
+
+  const search = yield* PersistedCache.make({
+    storeId: "Source.Tpb.search",
+    lookup: ({ imdbId }: SearchRequest) =>
       HttpClientRequest.get("/q.php", {
-        urlParams: { q: imbdId },
+        urlParams: { q: imdbId },
       }).pipe(
         client,
         SearchResult.decodeResponse,
+        Effect.orDie,
         Effect.map(results => (results[0].id === "0" ? [] : results)),
         Effect.withSpan("Source.Tpb.search", {
-          attributes: { imbdId },
+          attributes: { imdbId },
         }),
       ),
-    capacity: 4096,
-    timeToLive: "12 hours",
+    inMemoryCapacity: 8,
   })
 
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", "ImdbSeriesQuery", "ImdbSeasonQuery", query =>
-        search(query.imdbId).pipe(
+        search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
           Effect.map(
             Array.map(result =>
               query._tag === "ImdbSeasonQuery"
