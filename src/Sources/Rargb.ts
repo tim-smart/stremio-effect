@@ -5,7 +5,6 @@ import {
 } from "@effect/platform"
 import {
   Data,
-  Duration,
   Effect,
   Exit,
   flow,
@@ -39,18 +38,6 @@ export const SourceRargbLive = Effect.gen(function* () {
       }),
     ),
   )
-
-  const magnetLink = (url: string) =>
-    HttpClientRequest.get(url).pipe(
-      client,
-      HttpClientResponse.text,
-      Effect.flatMap(html => {
-        const $ = Cheerio.load(html)
-        return Effect.fromNullable(
-          $("td.lista a[href^='magnet:']").attr("href"),
-        )
-      }),
-    )
 
   const parseResults = (html: string) => {
     const $ = Cheerio.load(html)
@@ -123,7 +110,7 @@ export const SourceRargbLive = Effect.gen(function* () {
       Stream.take(10),
       Stream.flatMap(
         result =>
-          magnetLink(result.url).pipe(
+          magnetLink.get(new MagnetLinkRequest({ url: result.url })).pipe(
             Effect.map(magnet =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
@@ -150,6 +137,34 @@ export const SourceRargbLive = Effect.gen(function* () {
         { concurrency: "unbounded" },
       ),
     )
+
+  class MagnetLinkRequest extends Data.Class<{ url: string }> {
+    get [Serializable.symbolResult]() {
+      return {
+        Success: Schema.String,
+        Failure: Schema.Never,
+      }
+    }
+    [TimeToLive.symbol](exit: Exit.Exit<string, unknown>) {
+      return exit._tag === "Success" ? "3 weeks" : "5 minutes"
+    }
+  }
+  const magnetLink = yield* PersistedCache.make({
+    storeId: "Source.Rarbg.magnetLink",
+    lookup: ({ url }: MagnetLinkRequest) =>
+      HttpClientRequest.get(url).pipe(
+        client,
+        HttpClientResponse.text,
+        Effect.flatMap(html => {
+          const $ = Cheerio.load(html)
+          return Effect.fromNullable(
+            $("td.lista a[href^='magnet:']").attr("href"),
+          )
+        }),
+        Effect.orDie,
+      ),
+    inMemoryCapacity: 8,
+  })
 
   const sources = yield* Sources
   yield* sources.register({
