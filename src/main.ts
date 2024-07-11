@@ -38,6 +38,7 @@ const StremioLive = Stremio.layerAddon.pipe(
 
 const MainLive = StremioLive.pipe(
   Layer.provide(TracingLive),
+  Layer.provide(Logger.pretty),
   Layer.provide(Logger.minimumLogLevel(LogLevel.All)),
 )
 

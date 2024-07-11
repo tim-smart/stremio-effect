@@ -1,7 +1,6 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    nixpkgs-stable.url = "github:nixos/nixpkgs/24.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
     systems.url = "github:nix-systems/default";
     process-compose-flake.url = "github:Platonic-Systems/process-compose-flake";
@@ -16,11 +15,8 @@
       perSystem = {
         self',
         pkgs,
-        system,
         ...
-      }: let
-        stable = inputs.nixpkgs-stable.legacyPackages.${system};
-      in {
+      }: {
         process-compose."default" = {config, ...}: {
           imports = [
             inputs.services-flake.processComposeModules.default
@@ -29,7 +25,6 @@
           services.tempo.tempo.enable = true;
           services.grafana.grafana = {
             enable = true;
-            package = stable.grafana;
             http_port = 4000;
             extraConf = {
               "auth.anonymous" = {
@@ -49,7 +44,6 @@
           services.redis.redis = {
             enable = true;
           };
-
           settings.processes.tsx = {
             command = "tsx --watch src/main.ts";
           };
