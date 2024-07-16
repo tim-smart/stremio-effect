@@ -3,7 +3,17 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Array, Effect, Exit, Layer, Match, Schedule, Stream } from "effect"
+import {
+  Array,
+  Effect,
+  Exit,
+  Hash,
+  Layer,
+  Match,
+  PrimaryKey,
+  Schedule,
+  Stream,
+} from "effect"
 import * as S from "@effect/schema/Schema"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
@@ -32,6 +42,9 @@ export const SourceTpbLive = Effect.gen(function* () {
     Schema.Array(SearchResult),
     { imdbId: Schema.String },
   ) {
+    [PrimaryKey.symbol]() {
+      return Hash.hash(this).toString()
+    }
     [TimeToLive.symbol](exit: Exit.Exit<Array<SearchResult>, unknown>) {
       if (exit._tag === "Failure") return "5 minutes"
       return exit.value.length > 0 ? "3 days" : "6 hours"

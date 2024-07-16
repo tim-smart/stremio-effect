@@ -4,7 +4,17 @@ import {
   HttpClientResponse,
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
-import { Effect, Exit, Layer, Match, Option, Schedule, Stream } from "effect"
+import {
+  Effect,
+  Exit,
+  Hash,
+  Layer,
+  Match,
+  Option,
+  PrimaryKey,
+  Schedule,
+  Stream,
+} from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { Sources } from "../Sources.js"
 import { qualityFromTitle } from "../Utils.js"
@@ -35,6 +45,9 @@ export const SourceEztvLive = Effect.gen(function* () {
       page: Schema.Number,
     },
   ) {
+    [PrimaryKey.symbol]() {
+      return Hash.hash(this).toString()
+    }
     [TimeToLive.symbol](exit: Exit.Exit<GetTorrents, unknown>) {
       if (exit._tag === "Failure") return "5 minutes"
       return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"

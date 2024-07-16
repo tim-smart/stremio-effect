@@ -3,7 +3,16 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Effect, Exit, Layer, Match, Schedule, Stream } from "effect"
+import {
+  Effect,
+  Exit,
+  Hash,
+  Layer,
+  Match,
+  PrimaryKey,
+  Schedule,
+  Stream,
+} from "effect"
 import { Sources } from "../Sources.js"
 import * as S from "@effect/schema/Schema"
 import { magnetFromHash } from "../Utils.js"
@@ -35,6 +44,9 @@ export const SourceYtsLive = Effect.gen(function* () {
     Movie,
     { imdbId: Schema.String },
   ) {
+    [PrimaryKey.symbol]() {
+      return Hash.hash(this).toString()
+    }
     [TimeToLive.symbol](exit: Exit.Exit<Array<Movie>, unknown>) {
       if (exit._tag === "Failure") return "5 minutes"
       return exit.value.length > 0 ? "3 days" : "6 hours"

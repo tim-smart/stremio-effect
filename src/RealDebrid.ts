@@ -5,6 +5,7 @@ import {
   Effect,
   Exit,
   flow,
+  Hash,
   Layer,
   Option,
   pipe,
@@ -168,6 +169,9 @@ export const RealDebridLive = Effect.gen(function* () {
       file: Schema.String,
     },
   ) {
+    [PrimaryKey.symbol]() {
+      return Hash.hash(this).toString()
+    }
     [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
       return exit._tag === "Success" ? "1 hour" : "5 minutes"
     }

@@ -8,6 +8,7 @@ import {
   Effect,
   Exit,
   flow,
+  Hash,
   Layer,
   Match,
   pipe,
@@ -141,6 +142,9 @@ export const Source1337xLive = Effect.gen(function* () {
     )
 
   class MagnetLinkRequest extends Data.Class<{ url: string }> {
+    [PrimaryKey.symbol]() {
+      return Hash.hash(this).toString()
+    }
     get [Serializable.symbolResult]() {
       return {
         Success: Schema.String,
