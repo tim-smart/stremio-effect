@@ -6,7 +6,6 @@ import {
 import {
   Data,
   Effect,
-  Exit,
   flow,
   Hash,
   Layer,
@@ -21,7 +20,7 @@ import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
+import { PersistedCache } from "@effect/experimental"
 import { Schema, Serializable } from "@effect/schema"
 
 export const SourceRargbLive = Effect.gen(function* () {
@@ -68,14 +67,10 @@ export const SourceRargbLive = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return `${this.category}/${this.query}`
     }
-    [TimeToLive.symbol](exit: Exit.Exit<Array<SearchResult>, unknown>) {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 5 ? "3 days" : "3 hours"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: SearchResult.Array,
-        Failure: Schema.Never,
+        success: SearchResult.Array,
+        failure: Schema.Never,
       }
     }
   }
@@ -95,6 +90,10 @@ export const SourceRargbLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
       ),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "5 minutes"
+      return exit.value.length > 5 ? "3 days" : "3 hours"
+    },
     inMemoryCapacity: 8,
   })
 
@@ -145,12 +144,9 @@ export const SourceRargbLive = Effect.gen(function* () {
     }
     get [Serializable.symbolResult]() {
       return {
-        Success: Schema.String,
-        Failure: Schema.Never,
+        success: Schema.String,
+        failure: Schema.Never,
       }
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<string, unknown>) {
-      return exit._tag === "Success" ? "3 weeks" : "5 minutes"
     }
   }
   const magnetLink = yield* PersistedCache.make({
@@ -167,6 +163,8 @@ export const SourceRargbLive = Effect.gen(function* () {
         }),
         Effect.orDie,
       ),
+    timeToLive: (_, exit) =>
+      exit._tag === "Success" ? "3 weeks" : "5 minutes",
     inMemoryCapacity: 8,
   })
 

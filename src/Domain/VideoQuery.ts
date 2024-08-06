@@ -1,7 +1,6 @@
 import { Schema, Serializable } from "@effect/schema"
 import { Data, Exit, Option, Predicate, PrimaryKey } from "effect"
 import { SourceStream } from "./SourceStream.js"
-import { TimeToLive } from "@effect/experimental"
 
 export class SeriesQuery extends Data.TaggedClass("SeriesQuery")<{
   readonly title: string
@@ -24,6 +23,10 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
   readonly title: string
   readonly number: number
 }> {
+  timeToLive(exit: Exit.Exit<ReadonlyArray<any>, any>) {
+    if (exit._tag === "Failure") return "1 minute"
+    return exit.value.length > 0 ? "1 day" : "1 hour"
+  }
   get titleMatcher() {
     return Option.some(episodeTitleMatcher(this.number.toString()))
   }
@@ -33,14 +36,10 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
   [PrimaryKey.symbol]() {
     return `${this.title}/${this.number}`
   }
-  [TimeToLive.symbol](exit: Exit.Exit<Array<SourceStream>, unknown>) {
-    if (exit._tag === "Failure") return "1 minute"
-    return exit.value.length > 0 ? "1 day" : "1 hour"
-  }
   get [Serializable.symbolResult]() {
     return {
-      Success: SourceStream.Array,
-      Failure: Schema.Never,
+      success: SourceStream.Array,
+      failure: Schema.Never,
     }
   }
 }

@@ -20,7 +20,7 @@ import { magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema } from "@effect/schema"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
+import { PersistedCache } from "@effect/experimental"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -38,16 +38,14 @@ export const SourceTpbLive = Effect.gen(function* () {
 
   class SearchRequest extends Schema.TaggedRequest<SearchRequest>()(
     "SearchRequest",
-    Schema.Never,
-    Schema.Array(SearchResult),
-    { imdbId: Schema.String },
+    {
+      failure: Schema.Never,
+      success: Schema.Array(SearchResult),
+      payload: { imdbId: Schema.String },
+    },
   ) {
     [PrimaryKey.symbol]() {
       return Hash.hash(this).toString()
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<Array<SearchResult>, unknown>) {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 0 ? "3 days" : "6 hours"
     }
   }
 
@@ -65,6 +63,10 @@ export const SourceTpbLive = Effect.gen(function* () {
           attributes: { imdbId },
         }),
       ),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "5 minutes"
+      return exit.value.length > 0 ? "3 days" : "6 hours"
+    },
     inMemoryCapacity: 8,
   })
 

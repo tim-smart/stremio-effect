@@ -27,7 +27,6 @@ import {
 import { Cinemeta } from "./Cinemeta.js"
 import * as PersistedCache from "@effect/experimental/PersistedCache"
 import { Schema, Serializable } from "@effect/schema"
-import * as TimeToLive from "@effect/experimental/TimeToLive"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
@@ -179,19 +178,19 @@ const make = Effect.gen(function* () {
     }
     get [Serializable.symbolResult]() {
       return {
-        Success: SourceStream.Array,
-        Failure: Schema.String,
+        success: SourceStream.Array,
+        failure: Schema.String,
       }
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<Array<SourceStream>, any>) {
-      if (exit._tag === "Failure") return "1 minute"
-      return exit.value.length > 5 ? "3 days" : "6 hours"
     }
   }
   const listCache = yield* PersistedCache.make({
     storeId: "Sources.listCache",
     lookup: (request: ListRequest) =>
       listUncached(request.request, request.baseUrl),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "1 minute"
+      return exit.value.length > 5 ? "3 days" : "6 hours"
+    },
     inMemoryCapacity: 16,
   })
   const list = (request: StreamRequest, baseUrl: URL) =>

@@ -1,4 +1,5 @@
 import { Order as Order_ } from "effect"
+
 const priorities = [
   ["3D", 0],
   ["2160p", 1],

@@ -3,7 +3,6 @@ import {
   Context,
   Data,
   Effect,
-  Exit,
   flow,
   Layer,
   PrimaryKey,
@@ -18,7 +17,7 @@ import {
 } from "@effect/platform"
 import * as S from "@effect/schema/Schema"
 import { Schema, Serializable } from "@effect/schema"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
+import { PersistedCache } from "@effect/experimental"
 
 const make = Effect.gen(function* () {
   const apiKey = yield* Config.redacted("apiKey")
@@ -53,13 +52,10 @@ const make = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return this.id.toString()
     }
-    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
-      return exit._tag === "Success" ? "1 week" : "1 hour"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: EpisodeData,
-        Failure: Schema.Never,
+        success: EpisodeData,
+        failure: Schema.Never,
       }
     }
   }
@@ -80,6 +76,7 @@ const make = Effect.gen(function* () {
         Effect.map(_ => _.data),
         Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
       ),
+    timeToLive: (_, exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),
     inMemoryCapacity: 16,
   })
   const lookupEpisode = (id: number) =>

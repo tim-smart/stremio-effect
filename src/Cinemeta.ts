@@ -3,7 +3,6 @@ import {
   Context,
   Data,
   Effect,
-  Exit,
   Layer,
   Option,
   PrimaryKey,
@@ -25,7 +24,6 @@ import {
 } from "./Domain/VideoQuery.js"
 import * as PersistedCache from "@effect/experimental/PersistedCache"
 import { Schema, Serializable } from "@effect/schema"
-import * as TimeToLive from "@effect/experimental/TimeToLive"
 
 const make = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -50,13 +48,10 @@ const make = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return this.imdbId
     }
-    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
-      return exit._tag === "Success" ? "1 week" : "5 minutes"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: MovieMeta,
-        Failure: Schema.Never,
+        success: MovieMeta,
+        failure: Schema.Never,
       }
     }
   }
@@ -71,6 +66,7 @@ const make = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
       ),
+    timeToLive: (_, exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
     inMemoryCapacity: 8,
   })
   const lookupMovie = (imdbID: string) =>
@@ -80,13 +76,10 @@ const make = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return this.imdbID
     }
-    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
-      return exit._tag === "Success" ? "12 hours" : "5 minutes"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: SeriesMeta,
-        Failure: Schema.Never,
+        success: SeriesMeta,
+        failure: Schema.Never,
       }
     }
   }
@@ -100,6 +93,8 @@ const make = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
       ),
+    timeToLive: (_, exit) =>
+      exit._tag === "Success" ? "12 hours" : "5 minutes",
     inMemoryCapacity: 8,
   })
   const lookupSeries = (imdbID: string) =>
@@ -169,13 +164,10 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   id: S.String,
   imdb_id: S.String,
   type: S.String,
-  background: S.String,
   moviedb_id: S.Number,
   name: S.String,
   description: S.String,
   genres: S.Array(S.String),
-  releaseInfo: S.String,
-  country: S.String,
   slug: S.String,
 }) {
   get queries() {
@@ -190,7 +182,6 @@ export class Movie extends S.Class<Movie>("Movie")({
 }
 
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
-  country: S.String,
   description: S.String,
   imdb_id: S.String,
   name: S.String,
@@ -201,7 +192,6 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   slug: S.String,
   id: S.String,
   genres: S.Array(S.String),
-  releaseInfo: S.String,
   videos: S.Array(Video),
 }) {
   findEpisode(season: number, episode: number) {

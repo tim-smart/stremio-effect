@@ -1,12 +1,14 @@
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import { Schema, Serializable } from "@effect/schema"
+import * as Cheerio from "cheerio"
 import {
   Data,
   Effect,
-  Exit,
   flow,
   Hash,
   Layer,
@@ -16,13 +18,10 @@ import {
   Schedule,
   Stream,
 } from "effect"
-import * as Cheerio from "cheerio"
+import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
+import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { Schema, Serializable } from "@effect/schema"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -73,14 +72,10 @@ export const Source1337xLive = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return `${this.category}/${this.query}`
     }
-    [TimeToLive.symbol](exit: Exit.Exit<Array<SearchResult>, unknown>) {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 5 ? "3 days" : "3 hours"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: SearchResult.Array,
-        Failure: Schema.Never,
+        success: SearchResult.Array,
+        failure: Schema.Never,
       }
     }
   }
@@ -97,6 +92,10 @@ export const Source1337xLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.1337x.search", { attributes: { ...request } }),
       ),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "1 minute"
+      return exit.value.length > 5 ? "3 days" : "3 hours"
+    },
     inMemoryCapacity: 8,
   })
 
@@ -147,12 +146,9 @@ export const Source1337xLive = Effect.gen(function* () {
     }
     get [Serializable.symbolResult]() {
       return {
-        Success: Schema.String,
-        Failure: Schema.Never,
+        success: Schema.String,
+        failure: Schema.Never,
       }
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<string, unknown>) {
-      return exit._tag === "Success" ? "3 weeks" : "5 minutes"
     }
   }
   const magnetLink = yield* PersistedCache.make({
@@ -169,6 +165,8 @@ export const Source1337xLive = Effect.gen(function* () {
         }),
         Effect.orDie,
       ),
+    timeToLive: (_, exit) =>
+      exit._tag === "Success" ? "3 weeks" : "5 minutes",
     inMemoryCapacity: 8,
   })
 

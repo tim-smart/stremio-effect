@@ -1,11 +1,13 @@
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import { Schema } from "@effect/schema"
+import * as S from "@effect/schema/Schema"
 import {
   Effect,
-  Exit,
   Hash,
   Layer,
   Match,
@@ -13,13 +15,10 @@ import {
   Schedule,
   Stream,
 } from "effect"
-import { Sources } from "../Sources.js"
-import * as S from "@effect/schema/Schema"
-import { magnetFromHash } from "../Utils.js"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
-import { Schema } from "@effect/schema"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
+import { Sources } from "../Sources.js"
+import { magnetFromHash } from "../Utils.js"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -40,16 +39,14 @@ export const SourceYtsLive = Effect.gen(function* () {
 
   class DetailsRequest extends Schema.TaggedRequest<DetailsRequest>()(
     "DetailsRequest",
-    Schema.Never,
-    Movie,
-    { imdbId: Schema.String },
+    {
+      failure: Schema.Never,
+      success: Movie,
+      payload: { imdbId: Schema.String },
+    },
   ) {
     [PrimaryKey.symbol]() {
       return Hash.hash(this).toString()
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<Array<Movie>, unknown>) {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 0 ? "3 days" : "6 hours"
     }
   }
 
@@ -64,6 +61,10 @@ export const SourceYtsLive = Effect.gen(function* () {
         Effect.map(_ => _.data.movie),
         Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
       ),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "5 minutes"
+      return "3 days"
+    },
     inMemoryCapacity: 8,
   })
 

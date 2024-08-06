@@ -1,12 +1,13 @@
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
 import {
   Effect,
-  Exit,
   Hash,
   Layer,
   Match,
@@ -16,11 +17,9 @@ import {
   Stream,
 } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { qualityFromTitle } from "../Utils.js"
-import { VideoQuery } from "../Domain/VideoQuery.js"
-import { Schema } from "@effect/schema"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
 
 export const SourceEztvLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -36,21 +35,16 @@ export const SourceEztvLive = Effect.gen(function* () {
     ),
   )
 
-  class GetPage extends Schema.TaggedRequest<GetPage>()(
-    "GetPage",
-    Schema.Never,
-    GetTorrents,
-    {
+  class GetPage extends Schema.TaggedRequest<GetPage>()("GetPage", {
+    failure: Schema.Never,
+    success: GetTorrents,
+    payload: {
       imdbId: Schema.String,
       page: Schema.Number,
     },
-  ) {
+  }) {
     [PrimaryKey.symbol]() {
       return Hash.hash(this).toString()
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<GetTorrents, unknown>) {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
     }
   }
   const getPageCache = yield* PersistedCache.make({
@@ -66,6 +60,10 @@ export const SourceEztvLive = Effect.gen(function* () {
         GetTorrents.decodeResponse,
         Effect.orDie,
       ),
+    timeToLive: (_, exit) => {
+      if (exit._tag === "Failure") return "1 minute"
+      return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
+    },
   })
 
   const stream = (imdbId: string) =>

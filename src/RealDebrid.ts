@@ -3,7 +3,6 @@ import {
   Config,
   ConfigProvider,
   Effect,
-  Exit,
   flow,
   Hash,
   Layer,
@@ -30,7 +29,7 @@ import { magnetFromHash } from "./Utils.js"
 import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
 import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
-import { PersistedCache, TimeToLive } from "@effect/experimental"
+import { PersistedCache } from "@effect/experimental"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -87,13 +86,10 @@ export const RealDebridLive = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return this.infoHash
     }
-    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
-      return exit._tag === "Success" ? "1 week" : "5 minutes"
-    }
     get [Serializable.symbolResult]() {
       return {
-        Success: AvailabilityFile.OptionArray,
-        Failure: Schema.Never,
+        success: AvailabilityFile.OptionArray,
+        failure: Schema.Never,
       }
     }
   }
@@ -142,7 +138,11 @@ export const RealDebridLive = Effect.gen(function* () {
         ),
       ),
   ).pipe(
-    persisted("RealDebrid.Availability"),
+    persisted({
+      storeId: "RealDebrid.Availability",
+      timeToLive: (_, exit) =>
+        exit._tag === "Success" ? "1 week" : "5 minutes",
+    }),
     Effect.flatMap(dataLoader({ window: 200 })),
   )
 
@@ -162,18 +162,17 @@ export const RealDebridLive = Effect.gen(function* () {
 
   class ResolveRequest extends Schema.TaggedRequest<ResolveRequest>()(
     "ResolveRequest",
-    Schema.Never,
-    UnrestrictLinkResponse,
     {
-      infoHash: Schema.String,
-      file: Schema.String,
+      failure: Schema.Never,
+      success: UnrestrictLinkResponse,
+      payload: {
+        infoHash: Schema.String,
+        file: Schema.String,
+      },
     },
   ) {
     [PrimaryKey.symbol]() {
       return Hash.hash(this).toString()
-    }
-    [TimeToLive.symbol](exit: Exit.Exit<unknown, unknown>) {
-      return exit._tag === "Success" ? "1 hour" : "5 minutes"
     }
   }
   const resolve = yield* PersistedCache.make({
@@ -187,6 +186,7 @@ export const RealDebridLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("RealDebrid.resolve", { attributes: { request } }),
       ),
+    timeToLive: (_, exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
     inMemoryCapacity: 4,
   })
 
@@ -294,18 +294,18 @@ const AddMagnetResponse = Schema.Struct({
 const decodeAddMagnetResponse =
   HttpClientResponse.schemaBodyJsonScoped(AddMagnetResponse)
 
-const Files = Schema.Record(
-  Schema.String,
-  Schema.Struct({
+const Files = Schema.Record({
+  key: Schema.String,
+  value: Schema.Struct({
     filename: Schema.String,
     filesize: Schema.Number,
   }),
-)
+})
 
-const AvailabilityResponse = Schema.Record(
-  Schema.String,
-  Schema.Union(
-    Schema.Record(Schema.String, Schema.Array(Files)),
+const AvailabilityResponse = Schema.Record({
+  key: Schema.String,
+  value: Schema.Union(
+    Schema.Record({ key: Schema.String, value: Schema.Array(Files) }),
     Schema.Array(Schema.Unknown),
   ).pipe(
     Schema.transform(Schema.Array(Files), {
@@ -320,7 +320,7 @@ const AvailabilityResponse = Schema.Record(
       encode: value => ({ rd: value }),
     }),
   ),
-)
+})
 const decodeAvailabilityResponse =
   HttpClientResponse.schemaBodyJsonScoped(AvailabilityResponse)
 
