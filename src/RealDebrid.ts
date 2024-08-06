@@ -1,3 +1,13 @@
+import { PersistedCache } from "@effect/experimental"
+import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
+import {
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+  HttpRouter,
+  HttpServerResponse,
+} from "@effect/platform"
+import { Schema, Serializable } from "@effect/schema"
 import {
   Array,
   Config,
@@ -16,20 +26,10 @@ import {
   Schedule,
   Stream,
 } from "effect"
-import { Sources } from "./Sources.js"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-  HttpRouter,
-  HttpServerResponse,
-} from "@effect/platform"
-import { Schema, Serializable } from "@effect/schema"
-import { magnetFromHash } from "./Utils.js"
-import { StremioRouter } from "./Stremio.js"
 import { SourceStream } from "./Domain/SourceStream.js"
-import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
-import { PersistedCache } from "@effect/experimental"
+import { Sources } from "./Sources.js"
+import { StremioRouter } from "./Stremio.js"
+import { magnetFromHash } from "./Utils.js"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources

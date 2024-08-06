@@ -6,15 +6,7 @@ import {
 } from "@effect/platform"
 import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
-import {
-  Effect,
-  Hash,
-  Layer,
-  Match,
-  PrimaryKey,
-  Schedule,
-  Stream,
-} from "effect"
+import { Effect, Layer, Match, PrimaryKey, Schedule, Stream } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
@@ -46,7 +38,7 @@ export const SourceYtsLive = Effect.gen(function* () {
     },
   ) {
     [PrimaryKey.symbol]() {
-      return Hash.hash(this).toString()
+      return this.imdbId
     }
   }
 

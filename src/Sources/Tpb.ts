@@ -1,12 +1,14 @@
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import { Schema } from "@effect/schema"
+import * as S from "@effect/schema/Schema"
 import {
   Array,
   Effect,
-  Exit,
   Hash,
   Layer,
   Match,
@@ -14,13 +16,10 @@ import {
   Schedule,
   Stream,
 } from "effect"
-import * as S from "@effect/schema/Schema"
+import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
+import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
-import { Schema } from "@effect/schema"
-import { VideoQuery } from "../Domain/VideoQuery.js"
-import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { PersistedCache } from "@effect/experimental"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources

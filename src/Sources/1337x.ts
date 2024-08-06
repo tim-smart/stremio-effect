@@ -26,9 +26,7 @@ import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
-    HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://1337x.to")),
-    ),
+    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://1337x.to")),
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>

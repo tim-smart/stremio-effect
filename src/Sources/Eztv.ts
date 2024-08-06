@@ -12,6 +12,7 @@ import {
   Layer,
   Match,
   Option,
+  pipe,
   PrimaryKey,
   Schedule,
   Stream,
@@ -68,19 +69,15 @@ export const SourceEztvLive = Effect.gen(function* () {
 
   const stream = (imdbId: string) =>
     Stream.paginateChunkEffect(1, page =>
-      getPageCache
-        .get(new GetPage({ imdbId, page }))
-        .pipe(
-          Effect.map(
-            _ =>
-              [
-                _.torrents,
-                Option.some(page + 1).pipe(
-                  Option.filter(() => _.torrents.length < _.limit),
-                ),
-              ] as const,
+      pipe(
+        getPageCache.get(new GetPage({ imdbId, page })),
+        Effect.map(_ => [
+          _.torrents,
+          Option.some(page + 1).pipe(
+            Option.filter(() => _.torrents.length < _.limit),
           ),
-        ),
+        ]),
+      ),
     ).pipe(Stream.catchAllCause(() => Stream.empty))
 
   yield* sources.register({

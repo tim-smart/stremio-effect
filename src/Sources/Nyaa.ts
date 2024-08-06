@@ -1,8 +1,10 @@
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
+import * as Cheerio from "cheerio"
 import {
   Array,
   Effect,
@@ -13,19 +15,15 @@ import {
   Schedule,
   Stream,
 } from "effect"
-import * as Cheerio from "cheerio"
+import { SourceStream } from "../Domain/SourceStream.js"
+import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { SourceStream } from "../Domain/SourceStream.js"
-import { PersistedCache } from "@effect/experimental"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
-    HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://nyaa.si")),
-    ),
+    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://nyaa.si")),
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>
