@@ -5,16 +5,7 @@ import {
   HttpClientResponse,
 } from "@effect/platform"
 import * as Cheerio from "cheerio"
-import {
-  Array,
-  Effect,
-  flow,
-  Layer,
-  Match,
-  pipe,
-  Schedule,
-  Stream,
-} from "effect"
+import { Array, Effect, Layer, Match, pipe, Schedule, Stream } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
