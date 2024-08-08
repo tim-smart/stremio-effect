@@ -48,9 +48,9 @@
           settings.processes.tsx = {
             command = "tsx --watch src/main.ts";
           };
-          settings.processes.bun = {
-            command = "bun run --smol --watch src/main-bun.ts";
-          };
+          # settings.processes.bun = {
+          #   command = "bun run --smol --watch src/main-bun.ts";
+          # };
         };
       };
     };
