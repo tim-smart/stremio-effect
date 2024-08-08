@@ -25,6 +25,7 @@ export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
+    HttpClient.filterStatusOk,
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>

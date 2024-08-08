@@ -41,6 +41,7 @@ export const RealDebridLive = Effect.gen(function* () {
         HttpClientRequest.bearerToken(Redacted.value(apiKey)),
       ),
     ),
+    HttpClient.filterStatusOk,
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>

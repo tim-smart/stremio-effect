@@ -26,6 +26,7 @@ export const SourceEztvLive = Effect.gen(function* () {
   const sources = yield* Sources
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
+    HttpClient.filterStatusOk,
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>
