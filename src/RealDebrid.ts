@@ -13,6 +13,7 @@ import {
   Config,
   ConfigProvider,
   Effect,
+  Equal,
   flow,
   Hash,
   Layer,
@@ -25,6 +26,7 @@ import {
   RequestResolver,
   Schedule,
   Stream,
+  Tracer,
 } from "effect"
 import { SourceStream } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
@@ -82,10 +84,19 @@ export const RealDebridLive = Effect.gen(function* () {
   class AvailabilityRequest extends Request.Class<
     Option.Option<Array<AvailabilityFile>>,
     never,
-    { infoHash: string }
+    {
+      infoHash: string
+      span: Tracer.Span
+    }
   > {
     [PrimaryKey.symbol]() {
       return this.infoHash
+    }
+    [Equal.symbol](that: AvailabilityRequest) {
+      return this.infoHash === that.infoHash
+    }
+    [Hash.symbol]() {
+      return Hash.string(this.infoHash)
     }
     get [Serializable.symbolResult]() {
       return {
@@ -137,6 +148,16 @@ export const RealDebridLive = Effect.gen(function* () {
         Effect.catchAllCause(cause =>
           Effect.forEach(requests, Request.failCause(cause)),
         ),
+        Effect.withSpan("RealDebrid.AvailabilityResolver", {
+          attributes: {
+            batchSize: requests.length,
+          },
+          links: requests.map(request => ({
+            _tag: "SpanLink",
+            span: request.span,
+            attributes: {},
+          })),
+        }),
       ),
   ).pipe(
     persisted({
@@ -193,10 +214,15 @@ export const RealDebridLive = Effect.gen(function* () {
 
   yield* sources.registerEmbellisher({
     transform: (stream, baseUrl) =>
-      Effect.request(
-        new AvailabilityRequest({ infoHash: stream.infoHash }),
-        AvailabilityResolver,
-      ).pipe(
+      Effect.makeSpanScoped("RealDebrid.transform", {
+        attributes: { infoHash: stream.infoHash },
+      }).pipe(
+        Effect.flatMap(span =>
+          Effect.request(
+            new AvailabilityRequest({ infoHash: stream.infoHash, span }),
+            AvailabilityResolver,
+          ),
+        ),
         Effect.withRequestCaching(true),
         Effect.map(
           Option.match({
@@ -237,13 +263,11 @@ export const RealDebridLive = Effect.gen(function* () {
         Effect.orElseSucceed(() =>
           stream._tag === "SourceStream" ? [stream] : [],
         ),
-        Effect.withSpan("RealDebrid.transform", {
-          attributes: { infoHash: stream.infoHash },
-        }),
         Effect.annotateLogs({
           service: "RealDebrid",
           method: "transform",
         }),
+        Effect.scoped,
         Stream.fromIterableEffect,
       ),
   })
