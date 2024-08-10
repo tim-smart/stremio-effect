@@ -79,15 +79,16 @@ export const RealDebridLive = Effect.gen(function* () {
     HttpClientRequest.get(`/torrents/info/${id}`).pipe(
       client,
       decodeTorrentInfo,
+      Effect.retry({
+        while: err => err._tag === "ParseError",
+        schedule: Schedule.spaced(3000).pipe(Schedule.upTo("5 minutes")),
+      }),
     )
 
   class AvailabilityRequest extends Request.Class<
     Option.Option<Array<AvailabilityFile>>,
     never,
-    {
-      infoHash: string
-      span: Tracer.Span
-    }
+    { infoHash: string; span: Tracer.Span }
   > {
     [PrimaryKey.symbol]() {
       return this.infoHash
