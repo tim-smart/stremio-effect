@@ -5,11 +5,10 @@ import {
   Data,
   Effect,
   Equal,
-  Exit,
-  GroupBy,
   Hash,
   Iterable,
   Layer,
+  Option,
   PrimaryKey,
   Stream,
 } from "effect"
@@ -27,6 +26,7 @@ import {
 import { Cinemeta } from "./Cinemeta.js"
 import * as PersistedCache from "@effect/experimental/PersistedCache"
 import { Schema, Serializable } from "@effect/schema"
+import * as QualityGroup from "./Domain/QualityGroup.js"
 
 const make = Effect.gen(function* () {
   const sources = new Set<Source>()
@@ -157,9 +157,15 @@ const make = Effect.gen(function* () {
       Stream.flattenChunks,
       // group by quality and return
       Stream.map(_ => _.result),
-      Stream.groupByKey(_ => _.quality),
-      GroupBy.evaluate((_, stream) => Stream.take(stream, 3)),
-      Stream.runCollect,
+      Stream.scan(QualityGroup.empty(), QualityGroup.unsafeAdd),
+      Stream.takeUntil(QualityGroup.hasEnough),
+      Stream.runLast,
+      Effect.map(
+        Option.match({
+          onNone: () => Array.empty<SourceStream>(),
+          onSome: acc => Object.values(acc).flat(),
+        }),
+      ),
       Effect.map(Array.sort(SourceStream.Order)),
     )
 
