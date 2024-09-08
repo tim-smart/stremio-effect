@@ -148,7 +148,7 @@ export class Video extends S.Class<Video>("Video")({
   overview: S.String,
   thumbnail: S.String,
   id: S.String,
-  released: S.String,
+  released: S.optionalWith(S.String, { as: "Option", nullable: true }),
   episode: S.Number,
   description: S.optional(S.Union(S.Null, S.String)),
   title: S.optional(S.Union(S.Null, S.String)),
