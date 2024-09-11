@@ -152,7 +152,7 @@ export class Video extends S.Class<Video>("Video")({
   episode: S.Number,
   description: S.optional(S.Union(S.Null, S.String)),
   title: S.optional(S.Union(S.Null, S.String)),
-  moviedb_id: S.optional(S.Union(S.Number, S.Null)),
+  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
 }) {}
 
 export class TrailerStream extends S.Class<TrailerStream>("TrailerStream")({
@@ -164,7 +164,7 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   id: S.String,
   imdb_id: S.String,
   type: S.String,
-  moviedb_id: S.Number,
+  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
   name: S.String,
   description: S.String,
   genres: S.Array(S.String),
@@ -188,7 +188,7 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   status: S.String,
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
   type: S.String,
-  moviedb_id: S.Number,
+  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
   slug: S.String,
   id: S.String,
   genres: S.Array(S.String),
