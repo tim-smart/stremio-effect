@@ -12,24 +12,24 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@effect/experimental": "^0.25.0",
-    "@effect/opentelemetry": "^0.36.2",
-    "@effect/platform": "^0.64.0",
-    "@effect/platform-bun": "^0.44.0",
-    "@effect/platform-node": "^0.59.0",
-    "@effect/schema": "^0.72.3",
+    "@effect/experimental": "^0.25.2",
+    "@effect/opentelemetry": "^0.36.3",
+    "@effect/platform": "^0.64.1",
+    "@effect/platform-bun": "^0.44.1",
+    "@effect/platform-node": "^0.59.1",
+    "@effect/schema": "^0.72.4",
     "@opentelemetry/exporter-trace-otlp-http": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
     "@types/stremio-addon-sdk": "^1.6.11",
     "bun-types": "^1.1.27",
     "cheerio": "1.0.0",
-    "effect": "^3.7.2",
+    "effect": "^3.7.3",
     "prettier": "^3.3.3",
     "stremio-addon-sdk": "^1.6.10",
     "tsup": "^8.2.4",
-    "tsx": "^4.19.0",
-    "typescript": "^5.5.4"
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
   },
   "dependencies": {
     "ioredis": "^5.4.1"

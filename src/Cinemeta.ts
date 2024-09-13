@@ -139,36 +139,17 @@ export class Cinemeta extends Context.Tag("Cinemeta")<
 }
 
 export class Video extends S.Class<Video>("Video")({
-  name: S.optional(S.Union(S.Null, S.String)),
   season: S.Number,
   number: S.Number,
-  firstAired: S.optional(S.Union(S.Null, S.String)),
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
-  rating: S.optional(S.Union(S.Null, S.String)),
-  overview: S.String,
-  thumbnail: S.String,
   id: S.String,
-  released: S.optionalWith(S.String, { as: "Option", nullable: true }),
   episode: S.Number,
-  description: S.optional(S.Union(S.Null, S.String)),
-  title: S.optional(S.Union(S.Null, S.String)),
-  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
-}) {}
-
-export class TrailerStream extends S.Class<TrailerStream>("TrailerStream")({
-  title: S.String,
-  ytId: S.String,
 }) {}
 
 export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   id: S.String,
   imdb_id: S.String,
-  type: S.String,
-  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
   name: S.String,
-  description: S.String,
-  genres: S.Array(S.String),
-  slug: S.String,
 }) {
   get queries() {
     return [new MovieQuery({ title: this.name })]
@@ -182,14 +163,9 @@ export class Movie extends S.Class<Movie>("Movie")({
 }
 
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
-  description: S.String,
   imdb_id: S.String,
   name: S.String,
-  status: S.String,
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
-  type: S.String,
-  moviedb_id: S.optionalWith(S.Number, { as: "Option", nullable: true }),
-  slug: S.String,
   id: S.String,
   genres: S.Array(S.String),
   videos: S.Array(Video),
