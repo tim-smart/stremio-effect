@@ -4,7 +4,7 @@ import { Config, Layer, Logger, LogLevel } from "effect"
 import { TracingLive } from "./Tracing.js"
 import { AllSourcesDebrid } from "./Sources/All.js"
 import { PersistenceLive } from "./Persistence.js"
-import { HttpClient } from "@effect/platform"
+import { FetchHttpClient } from "@effect/platform"
 
 const StremioLive = Stremio.layerAddon.pipe(
   Layer.provide(
@@ -24,7 +24,7 @@ const StremioLive = Stremio.layerAddon.pipe(
     }),
   ),
   Layer.provide(AllSourcesDebrid),
-  Layer.provide(HttpClient.layer),
+  Layer.provide(FetchHttpClient.layer),
   Layer.provide(PersistenceLive),
 )
 

@@ -53,13 +53,15 @@ export const RealDebridLive = Effect.gen(function* () {
       }),
     ),
   )
-  const user = yield* HttpClientRequest.get("/user").pipe(
-    client,
-    HttpClientResponse.schemaBodyJsonScoped(
-      Schema.Struct({
-        type: Schema.Literal("premium", "free"),
-      }),
+  const user = yield* client.get("/user").pipe(
+    Effect.flatMap(
+      HttpClientResponse.schemaBodyJson(
+        Schema.Struct({
+          type: Schema.Literal("premium", "free"),
+        }),
+      ),
     ),
+    Effect.scoped,
     Effect.tapErrorCause(Effect.log),
     Effect.cachedWithTTL("1 hour"),
   )
@@ -69,16 +71,16 @@ export const RealDebridLive = Effect.gen(function* () {
   )
 
   const addMagnet = (magnet: string) =>
-    HttpClientRequest.post("/torrents/addMagnet").pipe(
-      HttpClientRequest.urlParamsBody({ magnet }),
-      client,
-      decodeAddMagnetResponse,
+    pipe(
+      client.post("/torrents/addMagnet", { urlParams: { magnet } }),
+      Effect.flatMap(decodeAddMagnetResponse),
+      Effect.scoped,
     )
 
   const getTorrentInfo = (id: string) =>
-    HttpClientRequest.get(`/torrents/info/${id}`).pipe(
-      client,
-      decodeTorrentInfo,
+    client.get(`/torrents/info/${id}`).pipe(
+      Effect.flatMap(decodeTorrentInfo),
+      Effect.scoped,
       Effect.retry({
         while: err => err._tag === "ParseError",
         schedule: Schedule.spaced(3000).pipe(Schedule.upTo("5 minutes")),
@@ -108,11 +110,12 @@ export const RealDebridLive = Effect.gen(function* () {
   }
   const AvailabilityResolver = yield* RequestResolver.makeBatched(
     (requests: Array<AvailabilityRequest>) =>
-      HttpClientRequest.get(
-        `/torrents/instantAvailability/${requests.map(_ => _.infoHash).join("/")}`,
-      ).pipe(
-        client,
-        decodeAvailabilityResponse,
+      pipe(
+        client.get(
+          `/torrents/instantAvailability/${requests.map(_ => _.infoHash).join("/")}`,
+        ),
+        Effect.flatMap(decodeAvailabilityResponse),
+        Effect.scoped,
         Effect.flatMap(availability =>
           Effect.forEach(
             requests,
@@ -171,16 +174,17 @@ export const RealDebridLive = Effect.gen(function* () {
 
   const selectFiles = (id: string, files: ReadonlyArray<string>) =>
     HttpClientRequest.post(`/torrents/selectFiles/${id}`).pipe(
-      HttpClientRequest.urlParamsBody({ files: files.join(",") }),
-      client,
-      HttpClientResponse.void,
+      HttpClientRequest.bodyUrlParams({ files: files.join(",") }),
+      client.execute,
+      Effect.scoped,
     )
 
   const unrestrictLink = (link: string) =>
     HttpClientRequest.post("/unrestrict/link").pipe(
-      HttpClientRequest.urlParamsBody({ link }),
-      client,
-      decodeUnrestrictLinkResponse,
+      HttpClientRequest.bodyUrlParams({ link }),
+      client.execute,
+      Effect.flatMap(decodeUnrestrictLinkResponse),
+      Effect.scoped,
     )
 
   class ResolveRequest extends Schema.TaggedRequest<ResolveRequest>()(
@@ -318,7 +322,7 @@ const AddMagnetResponse = Schema.Struct({
   uri: Schema.String,
 })
 const decodeAddMagnetResponse =
-  HttpClientResponse.schemaBodyJsonScoped(AddMagnetResponse)
+  HttpClientResponse.schemaBodyJson(AddMagnetResponse)
 
 const Files = Schema.Record({
   key: Schema.String,
@@ -348,17 +352,17 @@ const AvailabilityResponse = Schema.Record({
   ),
 })
 const decodeAvailabilityResponse =
-  HttpClientResponse.schemaBodyJsonScoped(AvailabilityResponse)
+  HttpClientResponse.schemaBodyJson(AvailabilityResponse)
 
 const TorrentInfo = Schema.Struct({
   links: Schema.NonEmptyArray(Schema.String),
 })
-const decodeTorrentInfo = HttpClientResponse.schemaBodyJsonScoped(TorrentInfo)
+const decodeTorrentInfo = HttpClientResponse.schemaBodyJson(TorrentInfo)
 
 const UnrestrictLinkResponse = Schema.Struct({
   download: Schema.String,
 })
-const decodeUnrestrictLinkResponse = HttpClientResponse.schemaBodyJsonScoped(
+const decodeUnrestrictLinkResponse = HttpClientResponse.schemaBodyJson(
   UnrestrictLinkResponse,
 )
 

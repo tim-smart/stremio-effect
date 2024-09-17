@@ -52,14 +52,16 @@ export const SourceEztvLive = Effect.gen(function* () {
   const getPageCache = yield* PersistedCache.make({
     storeId: "Source.Eztv.getPage",
     lookup: (_: GetPage) =>
-      HttpClientRequest.get("/get-torrents").pipe(
-        HttpClientRequest.setUrlParams({
-          page: _.page,
-          limit: "100",
-          imdb_id: _.imdbId.replace("tt", ""),
+      pipe(
+        client.get("/get-torrents", {
+          urlParams: {
+            page: _.page,
+            limit: "100",
+            imdb_id: _.imdbId.replace("tt", ""),
+          },
         }),
-        client,
-        GetTorrents.decodeResponse,
+        Effect.flatMap(GetTorrents.decodeResponse),
+        Effect.scoped,
         Effect.orDie,
       ),
     timeToLive: (_, exit) => {
@@ -150,5 +152,5 @@ export class GetTorrents extends S.Class<GetTorrents>("GetTorrents")({
   page: S.Number,
   torrents: S.Chunk(Torrent),
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this)
 }

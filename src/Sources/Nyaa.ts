@@ -1,9 +1,5 @@
 import { PersistedCache } from "@effect/experimental"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "@effect/platform"
+import { HttpClient, HttpClientRequest } from "@effect/platform"
 import * as Cheerio from "cheerio"
 import { Array, Effect, Layer, Match, pipe, Schedule, Stream } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
@@ -29,16 +25,18 @@ export const SourceNyaaLive = Effect.gen(function* () {
   const searchCache = yield* PersistedCache.make({
     storeId: "Source.Nyaa.search",
     lookup: (request: AbsoluteSeriesQuery) =>
-      HttpClientRequest.get("/").pipe(
-        HttpClientRequest.setUrlParams({
-          f: 1,
-          c: "1_2",
-          s: "seeders",
-          o: "desc",
-          q: request.asQuery,
+      pipe(
+        client.get("/", {
+          urlParams: {
+            f: 1,
+            c: "1_2",
+            s: "seeders",
+            o: "desc",
+            q: request.asQuery,
+          },
         }),
-        client,
-        HttpClientResponse.text,
+        Effect.flatMap(r => r.text),
+        Effect.scoped,
         Effect.map(html =>
           pipe(
             parseResults(html),

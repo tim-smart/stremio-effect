@@ -52,11 +52,9 @@ export const SourceTpbLive = Effect.gen(function* () {
   const search = yield* PersistedCache.make({
     storeId: "Source.Tpb.search",
     lookup: ({ imdbId }: SearchRequest) =>
-      HttpClientRequest.get("/q.php", {
-        urlParams: { q: imdbId },
-      }).pipe(
-        client,
-        SearchResult.decodeResponse,
+      client.get("/q.php", { urlParams: { q: imdbId } }).pipe(
+        Effect.flatMap(SearchResult.decodeResponse),
+        Effect.scoped,
         Effect.orDie,
         Effect.map(results => (results[0].id === "0" ? [] : results)),
         Effect.withSpan("Source.Tpb.search", {
@@ -112,9 +110,7 @@ export class SearchResult extends S.Class<SearchResult>("SearchResult")({
   category: S.String,
   imdb: S.String,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(
-    Schema.Array(this),
-  )
+  static decodeResponse = HttpClientResponse.schemaBodyJson(Schema.Array(this))
 
   get asStream() {
     return new SourceStream({

@@ -1,15 +1,10 @@
 import { PersistedCache } from "@effect/experimental"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "@effect/platform"
+import { HttpClient, HttpClientRequest } from "@effect/platform"
 import { Schema, Serializable } from "@effect/schema"
 import * as Cheerio from "cheerio"
 import {
   Data,
   Effect,
-  flow,
   Hash,
   Layer,
   Match,
@@ -26,9 +21,7 @@ import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
-    HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://rargb.to")),
-    ),
+    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://rargb.to")),
     HttpClient.transformResponse(
       Effect.retry({
         while: err =>
@@ -78,14 +71,16 @@ export const SourceRargbLive = Effect.gen(function* () {
   const searchCache = yield* PersistedCache.make({
     storeId: "Source.Rarbg.search",
     lookup: (request: SearchRequest) =>
-      HttpClientRequest.get("/search/").pipe(
-        HttpClientRequest.setUrlParams({
-          search: request.query,
-          "category[]":
-            request.category === "movies" ? ["movies"] : ["tv", "anime"],
+      pipe(
+        client.get("/search/", {
+          urlParams: {
+            search: request.query,
+            "category[]":
+              request.category === "movies" ? ["movies"] : ["tv", "anime"],
+          },
         }),
-        client,
-        HttpClientResponse.text,
+        Effect.flatMap(r => r.text),
+        Effect.scoped,
         Effect.map(parseResults),
         Effect.orDie,
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
@@ -152,9 +147,9 @@ export const SourceRargbLive = Effect.gen(function* () {
   const magnetLink = yield* PersistedCache.make({
     storeId: "Source.Rarbg.magnetLink",
     lookup: ({ url }: MagnetLinkRequest) =>
-      HttpClientRequest.get(url).pipe(
-        client,
-        HttpClientResponse.text,
+      client.get(url).pipe(
+        Effect.flatMap(r => r.text),
+        Effect.scoped,
         Effect.flatMap(html => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(

@@ -29,17 +29,20 @@ const make = Effect.gen(function* () {
   )
 
   const apiToken = yield* HttpClientRequest.post("/login").pipe(
-    HttpClientRequest.unsafeJsonBody({
+    HttpClientRequest.bodyUnsafeJson({
       apikey: Redacted.value(apiKey),
     }),
-    client,
-    HttpClientResponse.schemaBodyJsonScoped(
-      Schema.Struct({
-        data: Schema.Struct({
-          token: Schema.Redacted(Schema.String),
+    client.execute,
+    Effect.flatMap(
+      HttpClientResponse.schemaBodyJson(
+        Schema.Struct({
+          data: Schema.Struct({
+            token: Schema.Redacted(Schema.String),
+          }),
         }),
-      }),
+      ),
     ),
+    Effect.scoped,
   )
 
   const clientWithToken = client.pipe(
@@ -63,15 +66,15 @@ const make = Effect.gen(function* () {
   const lookupEpisodeCache = yield* PersistedCache.make({
     storeId: "Tvdb.lookupEpisode",
     lookup: ({ id }: LookupEpisode) =>
-      HttpClientRequest.get(`/episodes/${id}`).pipe(
-        clientWithToken,
+      clientWithToken.get(`/episodes/${id}`).pipe(
+        Effect.flatMap(Episode.decodeResponse),
+        Effect.scoped,
         Effect.retry({
           while: err =>
             err._tag === "ResponseError" && err.response.status >= 500,
           times: 5,
           schedule: Schedule.exponential(100),
         }),
-        Episode.decodeResponse,
         Effect.orDie,
         Effect.map(_ => _.data),
         Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
@@ -116,5 +119,5 @@ export class Episode extends S.Class<Episode>("Episode")({
   status: S.String,
   data: EpisodeData,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this)
 }

@@ -59,9 +59,9 @@ const make = Effect.gen(function* () {
   const lookupMovieCache = yield* PersistedCache.make({
     storeId: "Cinemeta.lookupMovie",
     lookup: (req: LookupMovie) =>
-      HttpClientRequest.get(`/movie/${req.imdbId}.json`).pipe(
-        client,
-        Movie.decodeResponse,
+      client.get(`/movie/${req.imdbId}.json`).pipe(
+        Effect.flatMap(Movie.decodeResponse),
+        Effect.scoped,
         Effect.map(_ => _.meta),
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
@@ -86,9 +86,9 @@ const make = Effect.gen(function* () {
   const lookupSeriesCache = yield* PersistedCache.make({
     storeId: "Cinemeta.lookupSeries",
     lookup: ({ imdbID }: LookupSeries) =>
-      HttpClientRequest.get(`/series/${imdbID}.json`).pipe(
-        client,
-        Series.decodeResponse,
+      client.get(`/series/${imdbID}.json`).pipe(
+        Effect.flatMap(Series.decodeResponse),
+        Effect.scoped,
         Effect.map(_ => _.meta),
         Effect.orDie,
         Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
@@ -159,7 +159,7 @@ export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
 export class Movie extends S.Class<Movie>("Movie")({
   meta: MovieMeta,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this)
 }
 
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
@@ -198,7 +198,7 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
 export class Series extends S.Class<Series>("Series")({
   meta: SeriesMeta,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this)
 }
 
 // episode result

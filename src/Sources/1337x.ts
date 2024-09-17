@@ -1,9 +1,5 @@
 import { PersistedCache } from "@effect/experimental"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "@effect/platform"
+import { HttpClient, HttpClientRequest } from "@effect/platform"
 import { Schema, Serializable } from "@effect/schema"
 import * as Cheerio from "cheerio"
 import {
@@ -80,15 +76,19 @@ export const Source1337xLive = Effect.gen(function* () {
   const searchCache = yield* PersistedCache.make({
     storeId: "Source.1337x.search",
     lookup: (request: SearchRequest) =>
-      HttpClientRequest.get(
-        `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
-      ).pipe(
-        client,
-        HttpClientResponse.text,
-        Effect.map(parseResults),
-        Effect.orDie,
-        Effect.withSpan("Source.1337x.search", { attributes: { ...request } }),
-      ),
+      client
+        .get(
+          `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
+        )
+        .pipe(
+          Effect.flatMap(r => r.text),
+          Effect.scoped,
+          Effect.map(parseResults),
+          Effect.orDie,
+          Effect.withSpan("Source.1337x.search", {
+            attributes: { ...request },
+          }),
+        ),
     timeToLive: (_, exit) => {
       if (exit._tag === "Failure") return "1 minute"
       return exit.value.length > 5 ? "3 days" : "3 hours"
@@ -151,9 +151,9 @@ export const Source1337xLive = Effect.gen(function* () {
   const magnetLink = yield* PersistedCache.make({
     storeId: "Source.1337x.magnetLink",
     lookup: ({ url }: MagnetLinkRequest) =>
-      HttpClientRequest.get(url).pipe(
-        client,
-        HttpClientResponse.text,
+      client.get(url).pipe(
+        Effect.flatMap(r => r.text),
+        Effect.scoped,
         Effect.flatMap(html => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(

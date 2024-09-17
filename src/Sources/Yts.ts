@@ -6,7 +6,15 @@ import {
 } from "@effect/platform"
 import { Schema } from "@effect/schema"
 import * as S from "@effect/schema/Schema"
-import { Effect, Layer, Match, PrimaryKey, Schedule, Stream } from "effect"
+import {
+  Effect,
+  Layer,
+  Match,
+  pipe,
+  PrimaryKey,
+  Schedule,
+  Stream,
+} from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
@@ -45,10 +53,10 @@ export const SourceYtsLive = Effect.gen(function* () {
   const details = yield* PersistedCache.make({
     storeId: "Source.Yts.details",
     lookup: ({ imdbId }: DetailsRequest) =>
-      HttpClientRequest.get("/movie_details.json").pipe(
-        HttpClientRequest.setUrlParam("imdb_id", imdbId),
-        client,
-        MovieDetails.decodeResponse,
+      pipe(
+        client.get("/movie_details.json", { urlParams: { imdb_id: imdbId } }),
+        Effect.flatMap(MovieDetails.decodeResponse),
+        Effect.scoped,
         Effect.orDie,
         Effect.map(_ => _.data.movie),
         Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
@@ -158,5 +166,5 @@ export class MovieDetails extends S.Class<MovieDetails>("MovieDetails")({
   status_message: S.String,
   data: MovieDetailsData,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJsonScoped(this)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this)
 }
