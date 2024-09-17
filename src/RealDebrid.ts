@@ -44,14 +44,13 @@ export const RealDebridLive = Effect.gen(function* () {
       ),
     ),
     HttpClient.filterStatusOk,
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status >= 429,
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retry({
+      while: err =>
+        (err._tag === "RequestError" && err.reason === "Transport") ||
+        (err._tag === "ResponseError" && err.response.status >= 429),
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
   const user = yield* client.get("/user").pipe(
     Effect.flatMap(
