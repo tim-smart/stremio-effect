@@ -142,7 +142,11 @@ export const RealDebridLive = Effect.gen(function* () {
                       fileName: filename,
                       fileSize: filesize,
                     })),
-                    Array.filter(_ => _.fileSize > 10 * 1024 * 1024),
+                    Array.filter(
+                      _ =>
+                        _.fileSize > 10 * 1024 * 1024 &&
+                        !/\bsample\b/i.test(_.fileName),
+                    ),
                     Option.liftPredicate(Array.isNonEmptyArray),
                   ),
                 )
