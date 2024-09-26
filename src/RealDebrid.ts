@@ -32,6 +32,7 @@ import { SourceStream } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { Torrent } from "./Torrent.js"
+import { magnetFromHash } from "./Utils.js"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -70,6 +71,15 @@ export const RealDebridLive = Effect.gen(function* () {
     Effect.orElseSucceed(() => false),
   )
 
+  const addMagnet = (hash: string) =>
+    pipe(
+      client.post("/torrents/addMagnet", {
+        urlParams: { magnet: magnetFromHash(hash) },
+      }),
+      Effect.flatMap(decodeAddMagnetResponse),
+      Effect.scoped,
+    )
+
   const addTorrentFromHash = (hash: string) =>
     pipe(
       HttpClientRequest.put("/torrents/addTorrent"),
@@ -77,6 +87,7 @@ export const RealDebridLive = Effect.gen(function* () {
         contentType: "application/x-bittorrent",
       }),
       client.execute,
+      Effect.timeout("10 seconds"),
       Effect.flatMap(decodeAddMagnetResponse),
       Effect.scoped,
     )
@@ -213,7 +224,8 @@ export const RealDebridLive = Effect.gen(function* () {
   const resolve = yield* PersistedCache.make({
     storeId: "RealDebrid.resolve",
     lookup: (request: ResolveRequest) =>
-      addTorrentFromHash(request.infoHash).pipe(
+      addMagnet(request.infoHash).pipe(
+        Effect.orElse(() => addTorrentFromHash(request.infoHash)),
         Effect.tap(_ => selectFiles(_.id, [request.file])),
         Effect.andThen(_ => getTorrentInfo(_.id)),
         Effect.andThen(info => unrestrictLink(info.links[0])),

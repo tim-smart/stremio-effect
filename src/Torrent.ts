@@ -10,6 +10,7 @@ const make = Effect.gen(function* () {
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl("https://itorrents.org/torrent"),
     ),
+    HttpClient.filterStatusOk,
   )
 
   const fromHash = (hash: string) =>
