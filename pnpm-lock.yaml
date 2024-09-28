@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  webrtc-polyfill@1.1.8:
+    hash: o4rocm2nfbjmtfmeyrieop3hwu
+    path: patches/webrtc-polyfill@1.1.8.patch
+
 importers:
 
   .:
@@ -2603,7 +2608,7 @@ snapshots:
       err-code: 3.0.1
       streamx: 2.20.1
       uint8-util: 2.2.5
-      webrtc-polyfill: 1.1.8
+      webrtc-polyfill: 1.1.8(patch_hash=o4rocm2nfbjmtfmeyrieop3hwu)
     transitivePeerDependencies:
       - supports-color
 
@@ -4298,7 +4303,7 @@ snapshots:
 
   webidl-conversions@4.0.2: {}
 
-  webrtc-polyfill@1.1.8:
+  webrtc-polyfill@1.1.8(patch_hash=o4rocm2nfbjmtfmeyrieop3hwu):
     dependencies:
       node-datachannel: 0.10.1
       node-domexception: 1.0.0
