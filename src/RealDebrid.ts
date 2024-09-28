@@ -1,6 +1,7 @@
 import { PersistedCache } from "@effect/experimental"
 import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
 import {
+  HttpBody,
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
@@ -82,12 +83,12 @@ export const RealDebridLive = Effect.gen(function* () {
 
   const addTorrentFromHash = (hash: string) =>
     pipe(
-      HttpClientRequest.put("/torrents/addTorrent"),
-      HttpClientRequest.bodyStream(torrent.fromHash(hash), {
-        contentType: "application/x-bittorrent",
-      }),
-      client.execute,
-      Effect.timeout("10 seconds"),
+      torrent.fromHash(hash),
+      Effect.flatMap(torrent =>
+        client.put("/torrents/addTorrent", {
+          body: HttpBody.uint8Array(torrent),
+        }),
+      ),
       Effect.flatMap(decodeAddMagnetResponse),
       Effect.scoped,
     )
