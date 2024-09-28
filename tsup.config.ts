@@ -4,5 +4,4 @@ export default defineConfig({
   entry: ["src/main.ts"],
   clean: true,
   treeshake: "smallest",
-  sourcemap: true,
 })
