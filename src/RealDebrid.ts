@@ -74,9 +74,9 @@ export const RealDebridLive = Effect.gen(function* () {
 
   const addMagnet = (hash: string) =>
     pipe(
-      client.post("/torrents/addMagnet", {
-        urlParams: { magnet: magnetFromHash(hash) },
-      }),
+      HttpClientRequest.post("/torrents/addMagnet"),
+      HttpClientRequest.bodyUrlParams({ magnet: magnetFromHash(hash) }),
+      client.execute,
       Effect.flatMap(decodeAddMagnetResponse),
       Effect.scoped,
     )
