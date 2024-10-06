@@ -22,14 +22,10 @@ export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://1337x.to")),
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status === 429,
-        times: 5,
-        schedule: Schedule.spaced(5000),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.spaced(5000),
+    }),
   )
 
   const parseResults = (html: string) => {
@@ -76,19 +72,18 @@ export const Source1337xLive = Effect.gen(function* () {
   const searchCache = yield* PersistedCache.make({
     storeId: "Source.1337x.search",
     lookup: (request: SearchRequest) =>
-      client
-        .get(
+      pipe(
+        client.get(
           `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
-        )
-        .pipe(
-          Effect.flatMap(r => r.text),
-          Effect.scoped,
-          Effect.map(parseResults),
-          Effect.orDie,
-          Effect.withSpan("Source.1337x.search", {
-            attributes: { ...request },
-          }),
         ),
+        Effect.flatMap(r => r.text),
+        Effect.scoped,
+        Effect.map(parseResults),
+        Effect.orDie,
+        Effect.withSpan("Source.1337x.search", {
+          attributes: { ...request },
+        }),
+      ),
     timeToLive: (_, exit) => {
       if (exit._tag === "Failure") return "1 minute"
       return exit.value.length > 5 ? "3 days" : "3 hours"

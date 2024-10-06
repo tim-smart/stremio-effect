@@ -3,7 +3,6 @@ import {
   Context,
   Data,
   Effect,
-  flow,
   Layer,
   PrimaryKey,
   Redacted,
@@ -23,9 +22,13 @@ const make = Effect.gen(function* () {
   const apiKey = yield* Config.redacted("apiKey")
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
-      flow(HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4")),
+      HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4"),
     ),
     HttpClient.filterStatusOk,
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   const apiToken = yield* HttpClientRequest.post("/login").pipe(
@@ -69,12 +72,6 @@ const make = Effect.gen(function* () {
       clientWithToken.get(`/episodes/${id}`).pipe(
         Effect.flatMap(Episode.decodeResponse),
         Effect.scoped,
-        Effect.retry({
-          while: err =>
-            err._tag === "ResponseError" && err.response.status >= 500,
-          times: 5,
-          schedule: Schedule.exponential(100),
-        }),
         Effect.orDie,
         Effect.map(_ => _.data),
         Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),

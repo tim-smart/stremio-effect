@@ -26,14 +26,10 @@ export const SourceTpbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
     HttpClient.filterStatusOk,
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status >= 429,
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   class SearchRequest extends Schema.TaggedRequest<SearchRequest>()(

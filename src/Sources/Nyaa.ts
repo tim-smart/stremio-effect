@@ -11,15 +11,10 @@ export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://nyaa.si")),
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" &&
-          (err.response.status >= 500 || err.response.status === 429),
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   const searchCache = yield* PersistedCache.make({

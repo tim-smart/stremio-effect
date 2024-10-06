@@ -22,14 +22,10 @@ export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://rargb.to")),
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status >= 429,
-        times: 5,
-        schedule: Schedule.spaced(5000),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.spaced(500),
+    }),
   )
 
   const parseResults = (html: string) => {

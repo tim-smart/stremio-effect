@@ -32,16 +32,10 @@ const make = Effect.gen(function* () {
     ),
     HttpClient.followRedirects(),
     HttpClient.filterStatusOk,
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" &&
-          err.reason === "StatusCode" &&
-          err.response.status < 400,
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   class LookupMovie extends Data.Class<{ imdbId: string }> {

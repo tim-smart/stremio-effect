@@ -27,14 +27,10 @@ export const SourceYtsLive = Effect.gen(function* () {
     HttpClient.mapRequest(
       HttpClientRequest.prependUrl("https://yts.mx/api/v2"),
     ),
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status >= 429,
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   class DetailsRequest extends Schema.TaggedRequest<DetailsRequest>()(

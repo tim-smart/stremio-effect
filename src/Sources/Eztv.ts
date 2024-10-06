@@ -27,14 +27,10 @@ export const SourceEztvLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
     HttpClient.filterStatusOk,
-    HttpClient.transformResponse(
-      Effect.retry({
-        while: err =>
-          err._tag === "ResponseError" && err.response.status >= 429,
-        times: 5,
-        schedule: Schedule.exponential(100),
-      }),
-    ),
+    HttpClient.retryTransient({
+      times: 5,
+      schedule: Schedule.exponential(100),
+    }),
   )
 
   class GetPage extends Schema.TaggedRequest<GetPage>()("GetPage", {

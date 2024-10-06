@@ -21,7 +21,6 @@ import {
   pipe,
   PrimaryKey,
   Record,
-  Redacted,
   Request,
   RequestResolver,
   Schedule,
@@ -36,22 +35,21 @@ import { magnetFromHash } from "./Utils.js"
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
   const apiKey = yield* Config.redacted("apiKey")
+
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
       flow(
         HttpClientRequest.prependUrl("https://api.real-debrid.com/rest/1.0"),
-        HttpClientRequest.bearerToken(Redacted.value(apiKey)),
+        HttpClientRequest.bearerToken(apiKey),
       ),
     ),
     HttpClient.filterStatusOk,
-    HttpClient.retry({
-      while: err =>
-        (err._tag === "RequestError" && err.reason === "Transport") ||
-        (err._tag === "ResponseError" && err.response.status >= 429),
+    HttpClient.retryTransient({
       times: 5,
       schedule: Schedule.exponential(100),
     }),
   )
+
   const user = yield* client.get("/user").pipe(
     Effect.flatMap(
       HttpClientResponse.schemaBodyJson(
