@@ -44,7 +44,13 @@ export const infoHashFromMagnet = (magnet: string) => {
 
 export const qualityFromTitle = (title: string) => {
   const match = title.match(/\d{3,4}p/)
-  return match ? match[0] : "N/A"
+  const isHdr = title.includes("HDR")
+  if (!match) {
+    return "N/A"
+  } else if (match[0] === "2160p" && isHdr) {
+    return "2160p HDR"
+  }
+  return match[0]
 }
 
 export const configProviderNested = (prefix: string) =>

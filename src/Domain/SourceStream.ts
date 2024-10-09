@@ -38,6 +38,8 @@ export class SourceStream extends Schema.TaggedClass<SourceStream>()(
 
   get qualityFormatted() {
     switch (this.quality) {
+      case "2160p HDR":
+        return "4K HDR"
       case "2160p":
         return "4K"
       default:

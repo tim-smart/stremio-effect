@@ -2,10 +2,11 @@ import { Order as Order_ } from "effect"
 
 const priorities = [
   ["3D", 0],
-  ["2160p", 1],
-  ["1080p", 2],
-  ["720p", 3],
-  ["480p", 4],
+  ["2160p HDR", 1],
+  ["2160p", 2],
+  ["1080p", 3],
+  ["720p", 4],
+  ["480p", 5],
 ] as const
 
 const priority = (quality: string) =>

@@ -47,6 +47,7 @@
           services.redis.redis.enable = true;
           settings.processes.tsx = {
             command = "tsx --watch src/main.ts";
+            is_foreground = true;
           };
           # settings.processes.bun = {
           #   command = "bun run --smol --watch src/main-bun.ts";
