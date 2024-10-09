@@ -1,13 +1,4 @@
-import {
-  Array,
-  Context,
-  Data,
-  Effect,
-  Layer,
-  Option,
-  PrimaryKey,
-  Schedule,
-} from "effect"
+import { Array, Data, Effect, Option, PrimaryKey, Schedule } from "effect"
 import {
   HttpClient,
   HttpClientRequest,
@@ -24,113 +15,111 @@ import {
 } from "./Domain/VideoQuery.js"
 import * as PersistedCache from "@effect/experimental/PersistedCache"
 import { Schema, Serializable } from "@effect/schema"
+import { PersistenceLive } from "./Persistence.js"
 
-const make = Effect.gen(function* () {
-  const client = (yield* HttpClient.HttpClient).pipe(
-    HttpClient.mapRequest(
-      HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
-    ),
-    HttpClient.followRedirects(),
-    HttpClient.filterStatusOk,
-    HttpClient.retryTransient({
-      times: 5,
-      schedule: Schedule.exponential(100),
-    }),
-  )
-
-  class LookupMovie extends Data.Class<{ imdbId: string }> {
-    [PrimaryKey.symbol]() {
-      return this.imdbId
-    }
-    get [Serializable.symbolResult]() {
-      return {
-        success: MovieMeta,
-        failure: Schema.Never,
-      }
-    }
-  }
-
-  const lookupMovieCache = yield* PersistedCache.make({
-    storeId: "Cinemeta.lookupMovie",
-    lookup: (req: LookupMovie) =>
-      client.get(`/movie/${req.imdbId}.json`).pipe(
-        Effect.flatMap(Movie.decodeResponse),
-        Effect.scoped,
-        Effect.map(_ => _.meta),
-        Effect.orDie,
-        Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
+export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
+  scoped: Effect.gen(function* () {
+    const client = (yield* HttpClient.HttpClient).pipe(
+      HttpClient.mapRequest(
+        HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
       ),
-    timeToLive: (_, exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
-    inMemoryCapacity: 8,
-  })
-  const lookupMovie = (imdbID: string) =>
-    lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
-
-  class LookupSeries extends Data.Class<{ imdbID: string }> {
-    [PrimaryKey.symbol]() {
-      return this.imdbID
-    }
-    get [Serializable.symbolResult]() {
-      return {
-        success: SeriesMeta,
-        failure: Schema.Never,
-      }
-    }
-  }
-  const lookupSeriesCache = yield* PersistedCache.make({
-    storeId: "Cinemeta.lookupSeries",
-    lookup: ({ imdbID }: LookupSeries) =>
-      client.get(`/series/${imdbID}.json`).pipe(
-        Effect.flatMap(Series.decodeResponse),
-        Effect.scoped,
-        Effect.map(_ => _.meta),
-        Effect.orDie,
-        Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
-      ),
-    timeToLive: (_, exit) =>
-      exit._tag === "Success" ? "12 hours" : "5 minutes",
-    inMemoryCapacity: 8,
-  })
-  const lookupSeries = (imdbID: string) =>
-    lookupSeriesCache.get(new LookupSeries({ imdbID }))
-
-  const tvdb = yield* Tvdb
-  const lookupEpisode = (imdbID: string, season: number, episode: number) =>
-    Effect.gen(function* () {
-      const series = yield* lookupSeries(imdbID)
-      if (!series.genres.includes("Animation")) {
-        return new GeneralEpisodeResult({
-          series,
-          season,
-          episode,
-        })
-      }
-      const info = yield* series.findEpisode(season, episode).pipe(
-        Effect.flatMap(_ => Effect.fromNullable(_.tvdb_id)),
-        Effect.flatMap(tvdb.lookupEpisode),
-        Effect.option,
-      )
-      return new AnimationEpisodeResult({
-        series,
-        season,
-        episode,
-        info,
-      })
-    }).pipe(
-      Effect.withSpan("Cinemeta.lookupEpisode", {
-        attributes: { imdbID, season, episode },
+      HttpClient.followRedirects(),
+      HttpClient.filterStatusOk,
+      HttpClient.retryTransient({
+        times: 5,
+        schedule: Schedule.exponential(100),
       }),
     )
 
-  return { lookupMovie, lookupSeries, lookupEpisode } as const
-})
+    class LookupMovie extends Data.Class<{ imdbId: string }> {
+      [PrimaryKey.symbol]() {
+        return this.imdbId
+      }
+      get [Serializable.symbolResult]() {
+        return {
+          success: MovieMeta,
+          failure: Schema.Never,
+        }
+      }
+    }
 
-export class Cinemeta extends Context.Tag("Cinemeta")<
-  Cinemeta,
-  Effect.Effect.Success<typeof make>
->() {
-  static Live = Layer.scoped(Cinemeta, make).pipe(Layer.provide(Tvdb.Live))
-}
+    const lookupMovieCache = yield* PersistedCache.make({
+      storeId: "Cinemeta.lookupMovie",
+      lookup: (req: LookupMovie) =>
+        client.get(`/movie/${req.imdbId}.json`).pipe(
+          Effect.flatMap(Movie.decodeResponse),
+          Effect.scoped,
+          Effect.map(_ => _.meta),
+          Effect.orDie,
+          Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
+        ),
+      timeToLive: (_, exit) =>
+        exit._tag === "Success" ? "1 week" : "5 minutes",
+      inMemoryCapacity: 8,
+    })
+    const lookupMovie = (imdbID: string) =>
+      lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
+
+    class LookupSeries extends Data.Class<{ imdbID: string }> {
+      [PrimaryKey.symbol]() {
+        return this.imdbID
+      }
+      get [Serializable.symbolResult]() {
+        return {
+          success: SeriesMeta,
+          failure: Schema.Never,
+        }
+      }
+    }
+    const lookupSeriesCache = yield* PersistedCache.make({
+      storeId: "Cinemeta.lookupSeries",
+      lookup: ({ imdbID }: LookupSeries) =>
+        client.get(`/series/${imdbID}.json`).pipe(
+          Effect.flatMap(Series.decodeResponse),
+          Effect.scoped,
+          Effect.map(_ => _.meta),
+          Effect.orDie,
+          Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
+        ),
+      timeToLive: (_, exit) =>
+        exit._tag === "Success" ? "12 hours" : "5 minutes",
+      inMemoryCapacity: 8,
+    })
+    const lookupSeries = (imdbID: string) =>
+      lookupSeriesCache.get(new LookupSeries({ imdbID }))
+
+    const tvdb = yield* Tvdb
+    const lookupEpisode = (imdbID: string, season: number, episode: number) =>
+      Effect.gen(function* () {
+        const series = yield* lookupSeries(imdbID)
+        if (!series.genres.includes("Animation")) {
+          return new GeneralEpisodeResult({
+            series,
+            season,
+            episode,
+          })
+        }
+        const info = yield* series.findEpisode(season, episode).pipe(
+          Effect.flatMap(_ => Effect.fromNullable(_.tvdb_id)),
+          Effect.flatMap(tvdb.lookupEpisode),
+          Effect.option,
+        )
+        return new AnimationEpisodeResult({
+          series,
+          season,
+          episode,
+          info,
+        })
+      }).pipe(
+        Effect.withSpan("Cinemeta.lookupEpisode", {
+          attributes: { imdbID, season, episode },
+        }),
+      )
+
+    return { lookupMovie, lookupSeries, lookupEpisode } as const
+  }),
+  dependencies: [Tvdb.Default, PersistenceLive],
+}) {}
 
 export class Video extends S.Class<Video>("Video")({
   season: S.Number,

@@ -120,6 +120,6 @@ export const layerAddon = Effect.gen(function* () {
   Effect.withConfigProvider(configProviderNested("addon")),
   Layer.unwrapEffect,
   Layer.annotateLogs({ service: "Stremio" }),
-  Layer.provide(Sources.Live),
+  Layer.provide(Sources.Default),
   Layer.provide(StremioRouter.Live),
 )

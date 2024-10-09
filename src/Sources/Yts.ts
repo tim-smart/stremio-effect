@@ -19,6 +19,7 @@ import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash } from "../Utils.js"
+import { PersistenceLive } from "../Persistence.js"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -83,7 +84,7 @@ export const SourceYtsLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
+}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
 
 // schema
 

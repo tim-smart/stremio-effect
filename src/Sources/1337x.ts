@@ -17,6 +17,7 @@ import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
+import { PersistenceLive } from "../Persistence.js"
 
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -188,7 +189,7 @@ export const Source1337xLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
+}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
 
 class SearchResult extends Schema.Class<SearchResult>("SearchResult")({
   url: Schema.String,

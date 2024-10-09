@@ -31,6 +31,7 @@ import { SourceStream } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
+import { PersistenceLive } from "./Persistence.js"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -316,8 +317,7 @@ export const RealDebridLive = Effect.gen(function* () {
     service: "RealDebrid",
   }),
   Layer.scopedDiscard,
-  Layer.provide(Sources.Live),
-  Layer.provide(StremioRouter.Live),
+  Layer.provide([Sources.Default, StremioRouter.Live, PersistenceLive]),
 )
 
 const AddMagnetResponse = Schema.Struct({

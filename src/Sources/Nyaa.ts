@@ -6,6 +6,7 @@ import { SourceStream } from "../Domain/SourceStream.js"
 import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
+import { PersistenceLive } from "../Persistence.js"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -98,4 +99,4 @@ export const SourceNyaaLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide(Sources.Live))
+}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
