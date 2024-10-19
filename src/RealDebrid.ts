@@ -290,13 +290,15 @@ export const RealDebridLive = Effect.gen(function* () {
   )
   yield* router.get(
     "/real-debrid/:hash/:file",
-    Effect.gen(function* () {
-      const { hash: infoHash, file } = yield* resolveParams
-      const url = yield* resolve.get(new ResolveRequest({ infoHash, file }))
-      return HttpServerResponse.empty({ status: 302 }).pipe(
-        HttpServerResponse.setHeader("Location", url.download),
-      )
-    }).pipe(
+    resolveParams.pipe(
+      Effect.flatMap(({ hash: infoHash, file }) =>
+        resolve.get(new ResolveRequest({ infoHash, file })),
+      ),
+      Effect.map(url =>
+        HttpServerResponse.empty({ status: 302 }).pipe(
+          HttpServerResponse.setHeader("Location", url.download),
+        ),
+      ),
       Effect.catchTag("ParseError", () =>
         HttpServerResponse.empty({ status: 404 }),
       ),
