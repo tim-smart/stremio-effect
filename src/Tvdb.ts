@@ -1,14 +1,21 @@
-import { Config, Data, Effect, PrimaryKey, Redacted, Schedule } from "effect"
-import { configProviderNested } from "./Utils.js"
+import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import * as S from "@effect/schema/Schema"
-import { Schema, Serializable } from "@effect/schema"
-import { PersistedCache } from "@effect/experimental"
+import {
+  Config,
+  Data,
+  Effect,
+  PrimaryKey,
+  Redacted,
+  Schedule,
+  Schema,
+} from "effect"
+import * as S from "effect/Schema"
 import { PersistenceLive } from "./Persistence.js"
+import { configProviderNested } from "./Utils.js"
 
 export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
   scoped: Effect.gen(function* () {
@@ -51,7 +58,7 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
       [PrimaryKey.symbol]() {
         return this.id.toString()
       }
-      get [Serializable.symbolResult]() {
+      get [Schema.symbolWithResult]() {
         return {
           success: EpisodeData,
           failure: Schema.Never,

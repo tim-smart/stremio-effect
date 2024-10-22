@@ -4,8 +4,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Schema } from "@effect/schema"
-import * as S from "@effect/schema/Schema"
+import * as S from "effect/Schema"
 import {
   Effect,
   Layer,
@@ -34,12 +33,12 @@ export const SourceYtsLive = Effect.gen(function* () {
     }),
   )
 
-  class DetailsRequest extends Schema.TaggedRequest<DetailsRequest>()(
+  class DetailsRequest extends S.TaggedRequest<DetailsRequest>()(
     "DetailsRequest",
     {
-      failure: Schema.Never,
+      failure: S.Never,
       success: Movie,
-      payload: { imdbId: Schema.String },
+      payload: { imdbId: S.String },
     },
   ) {
     [PrimaryKey.symbol]() {

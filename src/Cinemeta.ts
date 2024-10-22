@@ -1,11 +1,19 @@
-import { Array, Data, Effect, Option, PrimaryKey, Schedule } from "effect"
+import * as PersistedCache from "@effect/experimental/PersistedCache"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import * as S from "@effect/schema/Schema"
-import { EpisodeData, Tvdb } from "./Tvdb.js"
+import {
+  Array,
+  Data,
+  Effect,
+  Option,
+  PrimaryKey,
+  Schedule,
+  Schema,
+} from "effect"
+import * as S from "effect/Schema"
 import {
   AbsoluteSeriesQuery,
   ImdbAbsoluteSeriesQuery,
@@ -13,9 +21,8 @@ import {
   SeasonQuery,
   SeriesQuery,
 } from "./Domain/VideoQuery.js"
-import * as PersistedCache from "@effect/experimental/PersistedCache"
-import { Schema, Serializable } from "@effect/schema"
 import { PersistenceLive } from "./Persistence.js"
+import { EpisodeData, Tvdb } from "./Tvdb.js"
 
 export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
   scoped: Effect.gen(function* () {
@@ -35,7 +42,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
       [PrimaryKey.symbol]() {
         return this.imdbId
       }
-      get [Serializable.symbolResult]() {
+      get [S.symbolWithResult]() {
         return {
           success: MovieMeta,
           failure: Schema.Never,
@@ -64,7 +71,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
       [PrimaryKey.symbol]() {
         return this.imdbID
       }
-      get [Serializable.symbolResult]() {
+      get [S.symbolWithResult]() {
         return {
           success: SeriesMeta,
           failure: Schema.Never,

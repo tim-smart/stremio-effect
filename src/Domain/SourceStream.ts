@@ -1,8 +1,7 @@
-import { Data, Order } from "effect"
+import { Data, Order, Schema } from "effect"
 import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize, qualityFromTitle } from "../Utils.js"
 import * as Quality from "./Quality.js"
-import { Schema } from "@effect/schema"
 
 export class SourceStream extends Schema.TaggedClass<SourceStream>()(
   "SourceStream",

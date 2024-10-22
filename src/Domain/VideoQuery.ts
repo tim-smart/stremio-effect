@@ -1,5 +1,4 @@
-import { Schema, Serializable } from "@effect/schema"
-import { Data, Exit, Option, Predicate, PrimaryKey } from "effect"
+import { Data, Exit, Option, Predicate, PrimaryKey, Schema } from "effect"
 import { SourceStream } from "./SourceStream.js"
 
 export class SeriesQuery extends Data.TaggedClass("SeriesQuery")<{
@@ -36,7 +35,7 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
   [PrimaryKey.symbol]() {
     return `${this.title}/${this.number}`
   }
-  get [Serializable.symbolResult]() {
+  get [Schema.symbolWithResult]() {
     return {
       success: SourceStream.Array,
       failure: Schema.Never,

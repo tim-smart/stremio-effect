@@ -4,8 +4,8 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Schema } from "@effect/schema"
-import * as S from "@effect/schema/Schema"
+import { Schema } from "effect"
+import * as S from "effect/Schema"
 import {
   Effect,
   Hash,

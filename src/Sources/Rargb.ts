@@ -1,6 +1,5 @@
 import { PersistedCache } from "@effect/experimental"
 import { HttpClient, HttpClientRequest } from "@effect/platform"
-import { Schema, Serializable } from "@effect/schema"
 import * as Cheerio from "cheerio"
 import {
   Data,
@@ -11,13 +10,14 @@ import {
   pipe,
   PrimaryKey,
   Schedule,
+  Schema,
   Stream,
 } from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
+import { PersistenceLive } from "../Persistence.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { PersistenceLive } from "../Persistence.js"
 
 export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -57,7 +57,7 @@ export const SourceRargbLive = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return `${this.category}/${this.query}`
     }
-    get [Serializable.symbolResult]() {
+    get [Schema.symbolWithResult]() {
       return {
         success: SearchResult.Array,
         failure: Schema.Never,
@@ -134,7 +134,7 @@ export const SourceRargbLive = Effect.gen(function* () {
     [PrimaryKey.symbol]() {
       return Hash.hash(this).toString()
     }
-    get [Serializable.symbolResult]() {
+    get [Schema.symbolWithResult]() {
       return {
         success: Schema.String,
         failure: Schema.Never,

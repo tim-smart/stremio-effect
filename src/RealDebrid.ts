@@ -7,7 +7,6 @@ import {
   HttpRouter,
   HttpServerResponse,
 } from "@effect/platform"
-import { Schema, Serializable } from "@effect/schema"
 import {
   Array,
   Config,
@@ -24,14 +23,15 @@ import {
   Request,
   RequestResolver,
   Schedule,
+  Schema,
   Stream,
   Tracer,
 } from "effect"
 import { SourceStream } from "./Domain/SourceStream.js"
+import { PersistenceLive } from "./Persistence.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
-import { PersistenceLive } from "./Persistence.js"
 
 export const RealDebridLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -101,7 +101,7 @@ export const RealDebridLive = Effect.gen(function* () {
     [Hash.symbol]() {
       return Hash.string(this.infoHash)
     }
-    get [Serializable.symbolResult]() {
+    get [Schema.symbolWithResult]() {
       return {
         success: AvailabilityFile.OptionArray,
         failure: Schema.Never,

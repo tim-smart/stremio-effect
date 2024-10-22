@@ -4,8 +4,6 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "@effect/platform"
-import { Schema } from "@effect/schema"
-import * as S from "@effect/schema/Schema"
 import {
   Array,
   Effect,
@@ -16,11 +14,12 @@ import {
   Schedule,
   Stream,
 } from "effect"
+import * as S from "effect/Schema"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
+import { PersistenceLive } from "../Persistence.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
-import { PersistenceLive } from "../Persistence.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -33,12 +32,12 @@ export const SourceTpbLive = Effect.gen(function* () {
     }),
   )
 
-  class SearchRequest extends Schema.TaggedRequest<SearchRequest>()(
+  class SearchRequest extends S.TaggedRequest<SearchRequest>()(
     "SearchRequest",
     {
-      failure: Schema.Never,
-      success: Schema.Array(SearchResult),
-      payload: { imdbId: Schema.String },
+      failure: S.Never,
+      success: S.Array(SearchResult),
+      payload: { imdbId: S.String },
     },
   ) {
     [PrimaryKey.symbol]() {
@@ -107,7 +106,7 @@ export class SearchResult extends S.Class<SearchResult>("SearchResult")({
   category: S.String,
   imdb: S.String,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJson(Schema.Array(this))
+  static decodeResponse = HttpClientResponse.schemaBodyJson(S.Array(this))
 
   get asStream() {
     return new SourceStream({

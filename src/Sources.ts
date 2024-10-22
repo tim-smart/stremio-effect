@@ -1,3 +1,4 @@
+import * as PersistedCache from "@effect/experimental/PersistedCache"
 import {
   Array,
   Chunk,
@@ -8,9 +9,11 @@ import {
   Iterable,
   Option,
   PrimaryKey,
+  Schema,
   Stream,
 } from "effect"
-import { StreamRequest, streamRequestId } from "./Stremio.js"
+import { Cinemeta } from "./Cinemeta.js"
+import * as QualityGroup from "./Domain/QualityGroup.js"
 import { SourceSeason, SourceStream } from "./Domain/SourceStream.js"
 import {
   ChannelQuery,
@@ -21,11 +24,8 @@ import {
   nonSeasonQuery,
   VideoQuery,
 } from "./Domain/VideoQuery.js"
-import { Cinemeta } from "./Cinemeta.js"
-import * as PersistedCache from "@effect/experimental/PersistedCache"
-import { Schema, Serializable } from "@effect/schema"
-import * as QualityGroup from "./Domain/QualityGroup.js"
 import { PersistenceLive } from "./Persistence.js"
+import { StreamRequest, streamRequestId } from "./Stremio.js"
 
 export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
   scoped: Effect.gen(function* () {
@@ -182,7 +182,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
       [PrimaryKey.symbol]() {
         return streamRequestId(this.request)
       }
-      get [Serializable.symbolResult]() {
+      get [Schema.symbolWithResult]() {
         return {
           success: SourceStream.Array,
           failure: Schema.String,
