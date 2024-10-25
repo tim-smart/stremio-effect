@@ -38,13 +38,6 @@ export const streamRequestId = StreamRequest.$match({
   Tv: ({ imdbId }) => `Tv:${imdbId}`,
 })
 
-export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
-  StremioManifest,
-  Stremio.Manifest
->() {
-  static layer = (manifest: Stremio.Manifest) => Layer.succeed(this, manifest)
-}
-
 export class StremioRouter extends HttpRouter.Tag(
   "stremio/StremioRouter",
 )<StremioRouter>() {}
@@ -123,3 +116,12 @@ export const layerAddon = Effect.gen(function* () {
   Layer.provide(Sources.Default),
   Layer.provide(StremioRouter.Live),
 )
+
+export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
+  StremioManifest,
+  Stremio.Manifest
+>() {
+  static layer = (manifest: Stremio.Manifest) => Layer.succeed(this, manifest)
+  static addon = (manifest: Stremio.Manifest) =>
+    layerAddon.pipe(Layer.provide(this.layer(manifest)))
+}
