@@ -1,4 +1,13 @@
-import { Config, Context, Data, Effect, Layer, Option, Redacted } from "effect"
+import {
+  Config,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Option,
+  pipe,
+  Redacted,
+} from "effect"
 import {
   HttpMiddleware,
   HttpRouter,
@@ -9,6 +18,8 @@ import {
 import type * as Stremio from "stremio-addon-sdk"
 import { Sources } from "./Sources.js"
 import { configProviderNested } from "./Utils.js"
+import { ExtractTag } from "effect/Types"
+import { Cinemeta } from "./Cinemeta.js"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest
@@ -29,6 +40,9 @@ export type StreamRequest = Data.TaggedEnum<{
   }
   Tv: { readonly imdbId: string }
 }>
+export declare namespace StreamRequest {
+  export interface Series extends ExtractTag<StreamRequest, "Series"> {}
+}
 export const StreamRequest = Data.taggedEnum<StreamRequest>()
 export const streamRequestId = StreamRequest.$match({
   Channel: ({ id }) => `Channel:${id}`,
@@ -45,11 +59,13 @@ export class StremioRouter extends HttpRouter.Tag(
 export const layerAddon = Effect.gen(function* () {
   const sources = yield* Sources
   const manifest = yield* StremioManifest
+  const cinemeta = yield* Cinemeta
   const baseUrl = yield* Config.string("baseUrl").pipe(
     Config.map(url => new URL(url)),
     Config.option,
   )
   const token = yield* Config.redacted("token")
+  const scope = yield* Effect.scope
 
   const apiRouter = (yield* StremioRouter.router).pipe(
     HttpRouter.get("/manifest.json", HttpServerResponse.unsafeJson(manifest)),
@@ -90,9 +106,12 @@ export const layerAddon = Effect.gen(function* () {
             },
           ),
         ),
-        Effect.flatMap(({ streamRequest, baseUrl }) =>
-          sources.list(streamRequest, baseUrl),
-        ),
+        Effect.flatMap(({ streamRequest, baseUrl }) => {
+          const list = sources.list(streamRequest, baseUrl)
+          return streamRequest._tag === "Series"
+            ? Effect.zipLeft(list, preloadNextEpisode(streamRequest, baseUrl))
+            : list
+        }),
         Effect.map(streams =>
           HttpServerResponse.unsafeJson({
             streams: streams.map(_ => _.asStremio),
@@ -101,6 +120,29 @@ export const layerAddon = Effect.gen(function* () {
       ),
     ),
   )
+
+  const preloadNextEpisode = (current: StreamRequest.Series, baseUrl: URL) =>
+    pipe(
+      cinemeta.lookupSeries(current.imdbId),
+      Effect.flatMap(series =>
+        series.findEpisode(current.season, current.episode + 1),
+      ),
+      Effect.flatMap(video => {
+        console.log("preloading", video)
+        return sources.list(
+          StreamRequest.Series({
+            ...current,
+            episode: video.episode,
+          }),
+          baseUrl,
+        )
+      }),
+      Effect.ignore,
+      Effect.withSpan("Stremio.preloadNextEpisode", {
+        attributes: { current },
+      }),
+      Effect.forkIn(scope),
+    )
 
   return HttpRouter.empty.pipe(
     HttpRouter.get("/health", HttpServerResponse.text("OK")),
@@ -111,9 +153,10 @@ export const layerAddon = Effect.gen(function* () {
   )
 }).pipe(
   Effect.withConfigProvider(configProviderNested("addon")),
-  Layer.unwrapEffect,
+  Layer.unwrapScoped,
   Layer.annotateLogs({ service: "Stremio" }),
   Layer.provide(Sources.Default),
+  Layer.provide(Cinemeta.Default),
   Layer.provide(StremioRouter.Live),
 )
 
