@@ -127,16 +127,15 @@ export const layerAddon = Effect.gen(function* () {
       Effect.flatMap(series =>
         series.findEpisode(current.season, current.episode + 1),
       ),
-      Effect.flatMap(video => {
-        console.log("preloading", video)
-        return sources.list(
+      Effect.flatMap(video =>
+        sources.list(
           StreamRequest.Series({
             ...current,
             episode: video.episode,
           }),
           baseUrl,
-        )
-      }),
+        ),
+      ),
       Effect.ignore,
       Effect.withSpan("Stremio.preloadNextEpisode", {
         attributes: { current },
