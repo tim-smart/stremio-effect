@@ -91,6 +91,10 @@ export class SeasonQuery extends Data.TaggedClass("SeasonQuery")<{
       ...props,
       seasonString: `Season ${props.season}`,
     }),
+    new SeasonQuery({
+      ...props,
+      seasonString: "Complete",
+    }),
   ]
 
   get asQuery() {

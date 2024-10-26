@@ -99,7 +99,7 @@ export const SourceRargbLive = Effect.gen(function* () {
       ),
       Effect.map(Stream.fromIterable),
       Stream.unwrap,
-      Stream.take(10),
+      Stream.take(30),
       Stream.flatMap(
         result =>
           magnetLink.get(new MagnetLinkRequest({ url: result.url })).pipe(
