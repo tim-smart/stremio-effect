@@ -9,6 +9,7 @@ import {
 } from "@effect/platform"
 import {
   Array,
+  Chunk,
   Config,
   ConfigProvider,
   Effect,
@@ -19,6 +20,7 @@ import {
   Option,
   pipe,
   PrimaryKey,
+  Random,
   Record,
   Request,
   RequestResolver,
@@ -111,11 +113,22 @@ export const RealDebridLive = Effect.gen(function* () {
   const AvailabilityResolver = yield* RequestResolver.makeBatched(
     (requests: Array<AvailabilityRequest>) =>
       pipe(
-        client.get(
-          `/torrents/instantAvailability/${requests.map(_ => _.infoHash).join("/")}`,
+        Random.shuffle(requests),
+        Effect.flatMap(requests =>
+          client.get(
+            `/torrents/instantAvailability/${requests.pipe(
+              Chunk.map(_ => _.infoHash),
+              Chunk.join("/"),
+            )}`,
+          ),
         ),
         Effect.flatMap(decodeAvailabilityResponse),
         Effect.scoped,
+        Effect.retry({
+          while: err => err._tag === "ParseError",
+          times: 5,
+          schedule: Schedule.exponential(100),
+        }),
         Effect.flatMap(availability =>
           Effect.forEach(
             requests,
