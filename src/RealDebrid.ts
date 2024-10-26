@@ -154,7 +154,11 @@ export const RealDebridLive = Effect.gen(function* () {
         ),
         Effect.orDie,
         Effect.catchAllCause(cause =>
-          Effect.forEach(requests, Request.failCause(cause)),
+          Effect.logInfo(cause).pipe(
+            Effect.zipRight(
+              Effect.forEach(requests, Request.succeed(Option.none())),
+            ),
+          ),
         ),
         Effect.withSpan("RealDebrid.AvailabilityResolver", {
           attributes: {
@@ -337,24 +341,26 @@ const Files = Schema.Record({
   }),
 })
 
+const AvailabilityFiles = Schema.Union(
+  Schema.Record({ key: Schema.String, value: Schema.Array(Files) }),
+  Schema.Array(Schema.Unknown),
+).pipe(
+  Schema.transform(Schema.Array(Files), {
+    decode: value => {
+      if (Array.isArray(value)) {
+        return []
+      }
+      return Object.values(
+        value as Record<string, Array<typeof Files.Type>>,
+      ).flat()
+    },
+    encode: value => ({ rd: value }),
+  }),
+)
+
 const AvailabilityResponse = Schema.Record({
   key: Schema.String,
-  value: Schema.Union(
-    Schema.Record({ key: Schema.String, value: Schema.Array(Files) }),
-    Schema.Array(Schema.Unknown),
-  ).pipe(
-    Schema.transform(Schema.Array(Files), {
-      decode: value => {
-        if (Array.isArray(value)) {
-          return []
-        }
-        return Object.values(
-          value as Record<string, Array<typeof Files.Type>>,
-        ).flat()
-      },
-      encode: value => ({ rd: value }),
-    }),
-  ),
+  value: AvailabilityFiles,
 })
 const decodeAvailabilityResponse =
   HttpClientResponse.schemaBodyJson(AvailabilityResponse)
