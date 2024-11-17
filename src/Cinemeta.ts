@@ -99,24 +99,42 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
     const lookupEpisode = (imdbID: string, season: number, episode: number) =>
       Effect.gen(function* () {
         const series = yield* lookupSeries(imdbID)
-        if (!series.genres.includes("Animation")) {
-          return new GeneralEpisodeResult({
-            series,
-            season,
-            episode,
-          })
+        if (series.videos[0]?.episode === undefined) {
+          return [
+            new GeneralEpisodeResult({
+              series,
+              season,
+              episode,
+            }),
+            new AnimationEpisodeResult({
+              series,
+              season,
+              episode,
+              info: Option.none(),
+            }),
+          ]
+        } else if (!series.genres.includes("Animation")) {
+          return [
+            new GeneralEpisodeResult({
+              series,
+              season,
+              episode,
+            }),
+          ]
         }
         const info = yield* series.findEpisode(season, episode).pipe(
           Effect.flatMap(_ => Effect.fromNullable(_.tvdb_id)),
           Effect.flatMap(tvdb.lookupEpisode),
           Effect.option,
         )
-        return new AnimationEpisodeResult({
-          series,
-          season,
-          episode,
-          info,
-        })
+        return [
+          new AnimationEpisodeResult({
+            series,
+            season,
+            episode,
+            info,
+          }),
+        ]
       }).pipe(
         Effect.withSpan("Cinemeta.lookupEpisode", {
           attributes: { imdbID, season, episode },
@@ -133,8 +151,12 @@ export class Video extends S.Class<Video>("Video")({
   number: S.Number,
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
   id: S.String,
-  episode: S.Number,
-}) {}
+  episode: S.optional(S.Number),
+}) {
+  get episodeOrNumber() {
+    return this.episode ?? this.number
+  }
+}
 
 export class MovieMeta extends S.Class<MovieMeta>("MovieMeta")({
   id: S.String,
@@ -153,17 +175,17 @@ export class Movie extends S.Class<Movie>("Movie")({
 }
 
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
-  imdb_id: S.String,
+  imdb_id: S.optional(S.String),
   name: S.String,
   tvdb_id: S.optional(S.Union(S.Number, S.Null)),
   id: S.String,
-  genres: S.Array(S.String),
+  genres: S.optionalWith(S.Array(S.String), { default: () => [] }),
   videos: S.Array(Video),
 }) {
   findEpisode(season: number, episode: number) {
     return Array.findFirst(
       this.videos,
-      _ => _.season === season && _.episode === episode,
+      _ => _.season === season && _.episodeOrNumber === episode,
     )
   }
   absoluteQueries(
@@ -172,14 +194,18 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   ): Option.Option<Array<AbsoluteSeriesQuery | ImdbAbsoluteSeriesQuery>> {
     const index = this.videos
       .filter(_ => _.season > 0)
-      .findIndex(_ => _.season === season && _.episode === episode)
-    return index > 0
+      .findIndex(_ => _.season === season && _.episodeOrNumber === episode)
+    return index >= 0
       ? Option.some([
           new AbsoluteSeriesQuery({ title: this.name, number: index + 1 }),
-          new ImdbAbsoluteSeriesQuery({
-            imdbId: this.imdb_id,
-            number: index + 1,
-          }),
+          ...(this.imdb_id
+            ? [
+                new ImdbAbsoluteSeriesQuery({
+                  imdbId: this.imdb_id,
+                  number: index + 1,
+                }),
+              ]
+            : []),
         ])
       : Option.none()
   }
@@ -208,10 +234,14 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
           title: this.series.name,
           number: info.absoluteNumber,
         }),
-        new ImdbAbsoluteSeriesQuery({
-          imdbId: this.series.imdb_id,
-          number: info.absoluteNumber,
-        }),
+        ...(this.series.imdb_id
+          ? [
+              new ImdbAbsoluteSeriesQuery({
+                imdbId: this.series.imdb_id,
+                number: info.absoluteNumber,
+              }),
+            ]
+          : []),
       ]),
       Option.orElse(() =>
         this.series.absoluteQueries(this.season, this.episode),

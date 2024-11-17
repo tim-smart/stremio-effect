@@ -131,7 +131,7 @@ export const layerAddon = Effect.gen(function* () {
         sources.list(
           StreamRequest.Series({
             ...current,
-            episode: video.episode,
+            episode: video.episodeOrNumber,
           }),
           baseUrl,
         ),

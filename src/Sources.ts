@@ -79,7 +79,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         ).pipe(
           Stream.merge(
             cinemeta.lookupEpisode(imdbId, season, episode).pipe(
-              Effect.map(_ => _.queries),
+              Effect.map(_ => _.flatMap(_ => _.queries)),
               Effect.tapErrorCause(Effect.logDebug),
               Effect.orElseSucceed(() => []),
               Effect.withSpan("Sources.queriesFromRequest Series", {

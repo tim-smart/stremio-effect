@@ -26,11 +26,14 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
     if (exit._tag === "Failure") return "1 minute"
     return exit.value.length > 0 ? "1 day" : "1 hour"
   }
+  get numberPadded() {
+    return this.number.toString().padStart(2, "0")
+  }
   get titleMatcher() {
-    return Option.some(episodeTitleMatcher(this.number.toString()))
+    return Option.some(episodeTitleMatcher(this.numberPadded))
   }
   get asQuery() {
-    return `${this.title} ${this.number}`
+    return `${this.title} ${this.numberPadded}`
   }
   [PrimaryKey.symbol]() {
     return `${this.title}/${this.number}`
