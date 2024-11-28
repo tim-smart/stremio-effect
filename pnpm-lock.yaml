@@ -11,9 +11,6 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
-      parse-torrent:
-        specifier: ^11.0.17
-        version: 11.0.17
     devDependencies:
       '@effect/experimental':
         specifier: ^0.32.11
@@ -54,6 +51,9 @@ importers:
       effect:
         specifier: ^3.10.18
         version: 3.10.18
+      parse-torrent:
+        specifier: ^11.0.17
+        version: 11.0.17
       prettier:
         specifier: ^3.4.1
         version: 3.4.1
