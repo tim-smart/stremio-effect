@@ -59,6 +59,12 @@ export class SourceStream extends Schema.TaggedClass<SourceStream>()(
   }
 }
 
+export class SourceStreamWithFile extends SourceStream.extend<SourceStreamWithFile>(
+  "SourceStreamWithFile",
+)({
+  fileNumber: Schema.Number,
+}) {}
+
 export class SourceSeason extends Data.TaggedClass("SourceSeason")<{
   source: string
   title: string

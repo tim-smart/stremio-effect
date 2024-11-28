@@ -8,13 +8,18 @@ import {
   Hash,
   Iterable,
   Option,
+  pipe,
   PrimaryKey,
   Schema,
   Stream,
 } from "effect"
 import { Cinemeta } from "./Cinemeta.js"
 import * as QualityGroup from "./Domain/QualityGroup.js"
-import { SourceSeason, SourceStream } from "./Domain/SourceStream.js"
+import {
+  SourceSeason,
+  SourceStream,
+  SourceStreamWithFile,
+} from "./Domain/SourceStream.js"
 import {
   ChannelQuery,
   ImdbMovieQuery,
@@ -26,11 +31,13 @@ import {
 } from "./Domain/VideoQuery.js"
 import { PersistenceLive } from "./Persistence.js"
 import { StreamRequest, streamRequestId } from "./Stremio.js"
+import { TorrentMeta } from "./TorrentMeta.js"
 
 export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
   scoped: Effect.gen(function* () {
     const sources = new Set<Source>()
     const embellishers = new Set<Embellisher>()
+    const torrentMeta = yield* TorrentMeta
 
     const register = (source: Source) =>
       Effect.acquireRelease(
@@ -104,16 +111,28 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         Stream.let("nonSeasonQuery", ({ query }) => nonSeasonQuery(query)),
         // for each soucre run the queries
         Stream.bind("source", () => Stream.fromIterable(sources)),
-        Stream.bind("sourceResult", ({ source, query }) => source.list(query), {
-          concurrency: "unbounded",
-        }),
+        Stream.bind(
+          "sourceResult",
+          ({ source, query }) =>
+            pipe(
+              source.list(query),
+              Stream.flatMap(
+                (result): Stream.Stream<SourceStream | SourceStreamWithFile> =>
+                  result._tag === "SourceStream"
+                    ? Stream.make(result)
+                    : streamsFromSeason(result),
+                { concurrency: "unbounded" },
+              ),
+            ),
+          { concurrency: "unbounded" },
+        ),
         // filter out non matches
-        Stream.filter(({ sourceResult, query }) => {
+        Stream.filter(({ sourceResult, nonSeasonQuery }) => {
           if (sourceResult.verified) {
             return true
           }
-          return query.titleMatcher._tag === "Some"
-            ? query.titleMatcher.value(sourceResult.title)
+          return nonSeasonQuery.titleMatcher._tag === "Some"
+            ? nonSeasonQuery.titleMatcher.value(sourceResult.title)
             : true
         }),
         // embellish the results
@@ -169,6 +188,19 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         Effect.map(Array.sort(SourceStream.Order)),
       )
 
+    const streamsFromSeason = (season: SourceSeason) =>
+      pipe(
+        torrentMeta.fromMagnet(season.magnetUri),
+        Effect.map(result =>
+          Stream.fromChunk(Chunk.unsafeFromArray(result.streams(season))),
+        ),
+        Effect.withSpan("Sources.streamsFromSeason", {
+          attributes: { title: season.title, infoHash: season.infoHash },
+        }),
+        Effect.catchAllCause(() => Effect.succeed(Stream.empty)),
+        Stream.unwrap,
+      )
+
     class ListRequest extends Data.Class<{
       readonly request: StreamRequest
       readonly baseUrl: URL
@@ -204,7 +236,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
 
     return { list, register, registerEmbellisher } as const
   }),
-  dependencies: [Cinemeta.Default, PersistenceLive],
+  dependencies: [Cinemeta.Default, PersistenceLive, TorrentMeta.Default],
 }) {}
 
 // domain
@@ -217,7 +249,7 @@ export interface Source {
 
 export interface Embellisher {
   readonly transform: (
-    stream: SourceStream | SourceSeason,
+    stream: SourceStream | SourceStreamWithFile,
     baseUrl: URL,
-  ) => Stream.Stream<SourceStream>
+  ) => Stream.Stream<SourceStream | SourceStreamWithFile>
 }

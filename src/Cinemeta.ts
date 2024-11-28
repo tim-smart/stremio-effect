@@ -149,7 +149,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
 export class Video extends S.Class<Video>("Video")({
   season: S.Number,
   number: S.Number,
-  tvdb_id: S.optional(S.Union(S.Number, S.Null)),
+  tvdb_id: S.optional(S.Union(S.Number, S.NumberFromString, S.Null)),
   id: S.String,
   episode: S.optional(S.Number),
 }) {
@@ -177,7 +177,7 @@ export class Movie extends S.Class<Movie>("Movie")({
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   imdb_id: S.optional(S.String),
   name: S.String,
-  tvdb_id: S.optional(S.Union(S.Number, S.Null)),
+  tvdb_id: S.optional(S.Union(S.Number, S.NumberFromString, S.Null)),
   id: S.String,
   genres: S.optionalWith(S.Array(S.String), { default: () => [] }),
   videos: S.Array(Video),

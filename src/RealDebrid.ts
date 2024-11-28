@@ -1,5 +1,4 @@
 import { PersistedCache } from "@effect/experimental"
-import { dataLoader, persisted } from "@effect/experimental/RequestResolver"
 import {
   HttpClient,
   HttpClientRequest,
@@ -9,27 +8,20 @@ import {
 } from "@effect/platform"
 import {
   Array,
-  Chunk,
   Config,
   ConfigProvider,
   Effect,
-  Equal,
   flow,
   Hash,
   Layer,
   Option,
+  Order,
   pipe,
   PrimaryKey,
-  Random,
-  Record,
-  Request,
-  RequestResolver,
   Schedule,
   Schema,
-  Stream,
-  Tracer,
 } from "effect"
-import { SourceStream } from "./Domain/SourceStream.js"
+import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
 import { PersistenceLive } from "./Persistence.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
@@ -83,115 +75,12 @@ export const RealDebridLive = Effect.gen(function* () {
     client.get(`/torrents/info/${id}`).pipe(
       Effect.flatMap(decodeTorrentInfo),
       Effect.scoped,
+      Effect.tapErrorCause(Effect.log),
       Effect.retry({
         while: err => err._tag === "ParseError",
         schedule: Schedule.spaced(3000).pipe(Schedule.upTo("5 minutes")),
       }),
     )
-
-  class AvailabilityRequest extends Request.Class<
-    Option.Option<Array<AvailabilityFile>>,
-    never,
-    { infoHash: string; span: Tracer.Span }
-  > {
-    [PrimaryKey.symbol]() {
-      return this.infoHash
-    }
-    [Equal.symbol](that: AvailabilityRequest) {
-      return this.infoHash === that.infoHash
-    }
-    [Hash.symbol]() {
-      return Hash.string(this.infoHash)
-    }
-    get [Schema.symbolWithResult]() {
-      return {
-        success: AvailabilityFile.OptionArray,
-        failure: Schema.Never,
-      }
-    }
-  }
-  const AvailabilityResolver = yield* RequestResolver.makeBatched(
-    (requests: Array<AvailabilityRequest>) =>
-      pipe(
-        Random.shuffle(requests),
-        Effect.flatMap(requests =>
-          client.get(
-            `/torrents/instantAvailability/${requests.pipe(
-              Chunk.map(_ => _.infoHash),
-              Chunk.join("/"),
-            )}`,
-          ),
-        ),
-        Effect.flatMap(decodeAvailabilityResponse),
-        Effect.scoped,
-        Effect.retry({
-          while: err => err._tag === "ParseError",
-          times: 5,
-          schedule: Schedule.exponential(100),
-        }),
-        Effect.flatMap(availability =>
-          Effect.forEach(
-            requests,
-            request => {
-              const hash = request.infoHash.toLowerCase()
-              if (hash in availability && availability[hash].length > 0) {
-                const fileRecord: Record<
-                  string,
-                  { filename: string; filesize: number }
-                > = {}
-                for (const files of availability[hash]) {
-                  Object.assign(fileRecord, files)
-                }
-                return Request.succeed(
-                  request,
-                  pipe(
-                    Record.toEntries(fileRecord),
-                    Array.map(([fileNumber, { filename, filesize }]) => ({
-                      fileNumber,
-                      fileName: filename,
-                      fileSize: filesize,
-                    })),
-                    Array.filter(
-                      _ =>
-                        _.fileSize > 10 * 1024 * 1024 &&
-                        !/\bsample\b/i.test(_.fileName),
-                    ),
-                    Option.liftPredicate(Array.isNonEmptyArray),
-                  ),
-                )
-              }
-              return Request.succeed(request, Option.none())
-            },
-            { discard: true },
-          ),
-        ),
-        Effect.orDie,
-        Effect.catchAllCause(cause =>
-          Effect.logInfo(cause).pipe(
-            Effect.zipRight(
-              Effect.forEach(requests, Request.succeed(Option.none())),
-            ),
-          ),
-        ),
-        Effect.withSpan("RealDebrid.AvailabilityResolver", {
-          attributes: {
-            batchSize: requests.length,
-          },
-          links: requests.map(request => ({
-            _tag: "SpanLink",
-            span: request.span,
-            attributes: {},
-          })),
-        }),
-      ),
-  ).pipe(
-    persisted({
-      storeId: "RealDebrid.Availability",
-      timeToLive: (_, exit) =>
-        exit._tag === "Success" ? "1 week" : "5 minutes",
-    }),
-    Effect.flatMap(dataLoader({ window: 200 })),
-  )
 
   const selectFiles = (id: string, files: ReadonlyArray<string>) =>
     HttpClientRequest.post(`/torrents/selectFiles/${id}`).pipe(
@@ -199,6 +88,13 @@ export const RealDebridLive = Effect.gen(function* () {
       client.execute,
       Effect.scoped,
     )
+
+  const selectLargestFile = (id: string) =>
+    Effect.gen(function* () {
+      const info = yield* getTorrentInfo(id)
+      const largestFile = Array.max(info.files, FileSizeOrder)
+      yield* selectFiles(id, [String(largestFile.id)])
+    })
 
   const unrestrictLink = (link: string) =>
     HttpClientRequest.post("/unrestrict/link").pipe(
@@ -226,10 +122,17 @@ export const RealDebridLive = Effect.gen(function* () {
   const resolve = yield* PersistedCache.make({
     storeId: "RealDebrid.resolve",
     lookup: (request: ResolveRequest) =>
-      addMagnet(request.infoHash).pipe(
-        Effect.tap(_ => selectFiles(_.id, [request.file])),
-        Effect.andThen(_ => getTorrentInfo(_.id)),
-        Effect.andThen(info => unrestrictLink(info.links[0])),
+      Effect.gen(function* () {
+        const torrent = yield* addMagnet(request.infoHash)
+        if (request.file === "-1") {
+          yield* selectLargestFile(torrent.id)
+        } else {
+          yield* selectFiles(torrent.id, [request.file])
+        }
+        const info = yield* getTorrentInfo(torrent.id)
+        const link = yield* Effect.fromNullable(info.links[0])
+        return yield* unrestrictLink(link)
+      }).pipe(
         Effect.tapErrorCause(Effect.log),
         Effect.orDie,
         Effect.withSpan("RealDebrid.resolve", { attributes: { request } }),
@@ -240,61 +143,28 @@ export const RealDebridLive = Effect.gen(function* () {
 
   yield* sources.registerEmbellisher({
     transform: (stream, baseUrl) =>
-      Effect.makeSpanScoped("RealDebrid.transform", {
-        attributes: { infoHash: stream.infoHash },
-      }).pipe(
-        Effect.flatMap(span =>
-          Effect.request(
-            new AvailabilityRequest({ infoHash: stream.infoHash, span }),
-            AvailabilityResolver,
-          ),
-        ),
-        Effect.withRequestCaching(true),
-        Effect.map(
-          Option.match({
-            onNone: () => [],
-            onSome: files => {
-              if (stream._tag === "SourceStream") {
-                const file = files[0]
-                return [
-                  new SourceStream({
-                    ...stream,
-                    sizeBytes: files[0].fileSize,
-                    url: new URL(
-                      `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
-                      baseUrl,
-                    ).toString(),
-                  }),
-                ]
-              }
-              return files.map(
-                file =>
-                  new SourceStream({
-                    ...stream,
-                    title: file.fileName,
-                    sizeBytes: file.fileSize,
-                    quality: stream.quality,
-                    url: new URL(
-                      `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${file.fileNumber}`,
-                      baseUrl,
-                    ).toString(),
-                  }),
-              )
-            },
-          }),
-        ),
+      Effect.succeed(
+        "fileNumber" in stream
+          ? new SourceStreamWithFile({
+              ...stream,
+              url: new URL(
+                `${baseUrl.pathname}/real-debrid/${stream.infoHash}/${stream.fileNumber + 1}`,
+                baseUrl,
+              ).toString(),
+            })
+          : new SourceStream({
+              ...stream,
+              url: new URL(
+                `${baseUrl.pathname}/real-debrid/${stream.infoHash}/-1`,
+                baseUrl,
+              ).toString(),
+            }),
+      ).pipe(
         Effect.whenEffect(userIsPremium),
-        Effect.flatten,
-        Effect.tapErrorCause(Effect.logDebug),
-        Effect.orElseSucceed(() =>
-          stream._tag === "SourceStream" ? [stream] : [],
-        ),
-        Effect.annotateLogs({
-          service: "RealDebrid",
-          method: "transform",
+        Effect.map(Option.getOrElse(() => stream)),
+        Effect.withSpan("RealDebrid.transform", {
+          attributes: { infoHash: stream.infoHash },
         }),
-        Effect.scoped,
-        Stream.fromIterableEffect,
       ),
   })
 
@@ -346,41 +216,17 @@ const AddMagnetResponse = Schema.Struct({
 const decodeAddMagnetResponse =
   HttpClientResponse.schemaBodyJson(AddMagnetResponse)
 
-const Files = Schema.Record({
-  key: Schema.String,
-  value: Schema.Struct({
-    filename: Schema.String,
-    filesize: Schema.Number,
-  }),
-})
-
-const AvailabilityFiles = Schema.Union(
-  Schema.Record({ key: Schema.String, value: Schema.Array(Files) }),
-  Schema.Array(Schema.Unknown),
-).pipe(
-  Schema.transform(Schema.Array(Files), {
-    decode: value => {
-      if (Array.isArray(value)) {
-        return []
-      }
-      return Object.values(
-        value as Record<string, Array<typeof Files.Type>>,
-      ).flat()
-    },
-    encode: value => ({ rd: value }),
-  }),
-)
-
-const AvailabilityResponse = Schema.Record({
-  key: Schema.String,
-  value: AvailabilityFiles,
-})
-const decodeAvailabilityResponse =
-  HttpClientResponse.schemaBodyJson(AvailabilityResponse)
-
-const TorrentInfo = Schema.Struct({
-  links: Schema.NonEmptyArray(Schema.String),
-})
+class TorrentInfo extends Schema.Class<TorrentInfo>("TorrentInfo")({
+  links: Schema.Array(Schema.String),
+  files: Schema.NonEmptyArray(
+    Schema.Struct({
+      id: Schema.Number,
+      path: Schema.String,
+      bytes: Schema.Number,
+      selected: Schema.Number,
+    }),
+  ),
+}) {}
 const decodeTorrentInfo = HttpClientResponse.schemaBodyJson(TorrentInfo)
 
 const UnrestrictLinkResponse = Schema.Struct({
@@ -390,12 +236,6 @@ const decodeUnrestrictLinkResponse = HttpClientResponse.schemaBodyJson(
   UnrestrictLinkResponse,
 )
 
-class AvailabilityFile extends Schema.Class<AvailabilityFile>(
-  "AvailabilityFile",
-)({
-  fileNumber: Schema.String,
-  fileName: Schema.String,
-  fileSize: Schema.Number,
-}) {
-  static OptionArray = Schema.Option(Schema.Array(this))
-}
+const FileSizeOrder = Order.struct({
+  bytes: Order.number,
+})
