@@ -128,7 +128,9 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         ),
         // filter out non matches
         Stream.filter(({ sourceResult, nonSeasonQuery }) => {
-          if (sourceResult.verified) {
+          if (sourceResult.quality === "480p") {
+            return false
+          } else if (sourceResult.verified) {
             return true
           }
           return nonSeasonQuery.titleMatcher._tag === "Some"

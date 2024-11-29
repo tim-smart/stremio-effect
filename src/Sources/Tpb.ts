@@ -101,46 +101,55 @@ export const SourceTpbLive = Effect.gen(function* () {
 
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
-      Match.tag("ImdbSeasonQuery", (query) =>
-        search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
-          Stream.flatMap(Stream.fromIterable),
+      Match.tag("ImdbSeasonQuery", (query) => {
+        if (Option.isNone(query.titleMatcher)) return Stream.empty
+        const titleMatcher = query.titleMatcher.value
+        return search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
+          Stream.flatMap((results) =>
+            Stream.fromIterable(results.filter((_) => titleMatcher(_.name))),
+          ),
           Stream.flatMap(
-            (
-              result,
-            ): Stream.Stream<
-              Array<SourceSeason | SourceStreamWithFile>,
-              PersistenceError
-            > =>
+            (result) =>
               pipe(
                 files.get(new FilesRequest({ id: result.id })),
                 Effect.map(
-                  Array.match({
-                    onEmpty: () => [result.asSeason],
-                    onNonEmpty: (files) =>
-                      files.map(
-                        (file, index) =>
-                          new SourceStreamWithFile({
-                            source: "TPB",
-                            title: file.name[0],
-                            infoHash: result.info_hash,
-                            magnetUri: magnetFromHash(result.info_hash),
-                            quality: qualityFromTitle(file.name[0]),
-                            seeds: result.seeders,
-                            peers: result.leechers,
-                            sizeBytes: file.size[0],
-                            fileNumber: index,
-                          }),
-                      ),
-                  }),
+                  (
+                    files,
+                  ): Stream.Stream<
+                    SourceSeason | SourceStreamWithFile,
+                    PersistenceError
+                  > =>
+                    Array.match(files, {
+                      onEmpty: () => Stream.make(result.asSeason),
+                      onNonEmpty: (files) =>
+                        pipe(
+                          Array.map(
+                            files,
+                            (file, index) =>
+                              new SourceStreamWithFile({
+                                source: "TPB",
+                                title: file.name[0],
+                                infoHash: result.info_hash,
+                                magnetUri: magnetFromHash(result.info_hash),
+                                quality: qualityFromTitle(file.name[0]),
+                                seeds: result.seeders,
+                                peers: result.leechers,
+                                sizeBytes: file.size[0],
+                                fileNumber: index,
+                              }),
+                          ),
+                          Stream.fromIterable,
+                        ),
+                    }),
                 ),
+                Stream.unwrap,
               ),
             { concurrency: "unbounded" },
           ),
-          Stream.flatMap(Stream.fromIterable),
           Stream.orDie,
           Stream.withSpan("Source.Tpb.Imdb season", { attributes: { query } }),
-        ),
-      ),
+        )
+      }),
       Match.tag("ImbdMovieQuery", "ImdbSeriesQuery", (query) =>
         search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
           Effect.map(Array.map((result) => result.asStream)),
