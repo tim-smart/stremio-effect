@@ -28,6 +28,6 @@ export const hasEnough = (self: QualityGroup): boolean => {
     (self["2160p HDR"].length >= 2 &&
       self["2160p"].length >= 3 &&
       self["1080p"].length >= 3) ||
-    Object.values(self).flat().length >= 12
+    Object.values(self).flat().length >= 9
   )
 }
