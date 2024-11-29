@@ -58,7 +58,7 @@ export const RealDebridLive = Effect.gen(function* () {
     Effect.cachedWithTTL("1 hour"),
   )
   const userIsPremium = user.pipe(
-    Effect.map(_ => _.type === "premium"),
+    Effect.map((_) => _.type === "premium"),
     Effect.orElseSucceed(() => false),
   )
 
@@ -77,7 +77,7 @@ export const RealDebridLive = Effect.gen(function* () {
       Effect.scoped,
       Effect.tapErrorCause(Effect.log),
       Effect.retry({
-        while: err => err._tag === "ParseError",
+        while: (err) => err._tag === "ParseError",
         schedule: Schedule.spaced(3000).pipe(Schedule.upTo("5 minutes")),
       }),
     )
@@ -181,7 +181,7 @@ export const RealDebridLive = Effect.gen(function* () {
       Effect.flatMap(({ hash: infoHash, file }) =>
         resolve.get(new ResolveRequest({ infoHash, file })),
       ),
-      Effect.map(url =>
+      Effect.map((url) =>
         HttpServerResponse.empty({ status: 302 }).pipe(
           HttpServerResponse.setHeader("Location", url.download),
         ),

@@ -43,8 +43,8 @@ export const Source1337xLive = Effect.gen(function* () {
           title: link.text().trim(),
           size: cells
             .eq(4)[0]
-            .children.filter(_ => _.type === "text")
-            .map(_ => _.data)
+            .children.filter((_) => _.type === "text")
+            .map((_) => _.data)
             .join(" ")
             .trim(),
           seeds: +cells.eq(1).text(),
@@ -77,7 +77,7 @@ export const Source1337xLive = Effect.gen(function* () {
         client.get(
           `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
         ),
-        Effect.flatMap(r => r.text),
+        Effect.flatMap((r) => r.text),
         Effect.scoped,
         Effect.map(parseResults),
         Effect.orDie,
@@ -104,9 +104,9 @@ export const Source1337xLive = Effect.gen(function* () {
       Stream.unwrap,
       Stream.take(30),
       Stream.flatMap(
-        result =>
+        (result) =>
           magnetLink.get(new MagnetLinkRequest({ url: result.url })).pipe(
-            Effect.map(magnet =>
+            Effect.map((magnet) =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
                     source: "1337x",
@@ -148,9 +148,9 @@ export const Source1337xLive = Effect.gen(function* () {
     storeId: "Source.1337x.magnetLink",
     lookup: ({ url }: MagnetLinkRequest) =>
       client.get(url).pipe(
-        Effect.flatMap(r => r.text),
+        Effect.flatMap((r) => r.text),
         Effect.scoped,
-        Effect.flatMap(html => {
+        Effect.flatMap((html) => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(
             $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
@@ -171,9 +171,9 @@ export const Source1337xLive = Effect.gen(function* () {
         "MovieQuery",
         "SeriesQuery",
         "SeasonQuery",
-        query =>
+        (query) =>
           searchStream(query).pipe(
-            Stream.catchAllCause(cause =>
+            Stream.catchAllCause((cause) =>
               Effect.logDebug(cause).pipe(
                 Effect.annotateLogs({
                   service: "Source.1337x",

@@ -76,7 +76,7 @@ export const SourceRargbLive = Effect.gen(function* () {
               request.category === "movies" ? ["movies"] : ["tv", "anime"],
           },
         }),
-        Effect.flatMap(r => r.text),
+        Effect.flatMap((r) => r.text),
         Effect.scoped,
         Effect.map(parseResults),
         Effect.orDie,
@@ -101,9 +101,9 @@ export const SourceRargbLive = Effect.gen(function* () {
       Stream.unwrap,
       Stream.take(30),
       Stream.flatMap(
-        result =>
+        (result) =>
           magnetLink.get(new MagnetLinkRequest({ url: result.url })).pipe(
-            Effect.map(magnet =>
+            Effect.map((magnet) =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
                     source: "Rarbg",
@@ -145,9 +145,9 @@ export const SourceRargbLive = Effect.gen(function* () {
     storeId: "Source.Rarbg.magnetLink",
     lookup: ({ url }: MagnetLinkRequest) =>
       client.get(url).pipe(
-        Effect.flatMap(r => r.text),
+        Effect.flatMap((r) => r.text),
         Effect.scoped,
-        Effect.flatMap(html => {
+        Effect.flatMap((html) => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(
             $("td.lista a[href^='magnet:']").attr("href"),
@@ -168,9 +168,9 @@ export const SourceRargbLive = Effect.gen(function* () {
         "MovieQuery",
         "SeriesQuery",
         "SeasonQuery",
-        query =>
+        (query) =>
           searchStream(query).pipe(
-            Stream.catchAllCause(cause =>
+            Stream.catchAllCause((cause) =>
               Effect.logDebug(cause).pipe(
                 Effect.annotateLogs({
                   service: "Source.Rarbg",

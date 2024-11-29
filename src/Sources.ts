@@ -64,7 +64,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         Stream.make(new ImdbMovieQuery({ imdbId })).pipe(
           Stream.merge(
             cinemeta.lookupMovie(imdbId).pipe(
-              Effect.map(_ => _.queries),
+              Effect.map((_) => _.queries),
               Effect.tapErrorCause(Effect.logDebug),
               Effect.orElseSucceed(() => []),
               Effect.withSpan("Sources.queriesFromRequest Movie", {
@@ -86,7 +86,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         ).pipe(
           Stream.merge(
             cinemeta.lookupEpisode(imdbId, season, episode).pipe(
-              Effect.map(_ => _.flatMap(_ => _.queries)),
+              Effect.map((_) => _.flatMap((_) => _.queries)),
               Effect.tapErrorCause(Effect.logDebug),
               Effect.orElseSucceed(() => []),
               Effect.withSpan("Sources.queriesFromRequest Series", {
@@ -175,14 +175,14 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
         }),
         Stream.flattenChunks,
         // group by quality and return
-        Stream.map(_ => _.result),
+        Stream.map((_) => _.result),
         Stream.scan(QualityGroup.empty(), QualityGroup.unsafeAdd),
         Stream.takeUntil(QualityGroup.hasEnough),
         Stream.runLast,
         Effect.map(
           Option.match({
             onNone: () => Array.empty<SourceStream>(),
-            onSome: acc => Object.values(acc).flat(),
+            onSome: (acc) => Object.values(acc).flat(),
           }),
         ),
         Effect.map(Array.sort(SourceStream.Order)),
@@ -191,7 +191,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
     const streamsFromSeason = (season: SourceSeason) =>
       pipe(
         torrentMeta.fromMagnet(season.magnetUri),
-        Effect.map(result =>
+        Effect.map((result) =>
           Stream.fromChunk(Chunk.unsafeFromArray(result.streams(season))),
         ),
         Effect.withSpan("Sources.streamsFromSeason", {
@@ -244,7 +244,7 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
 export interface Source {
   readonly list: (
     query: VideoQuery,
-  ) => Stream.Stream<SourceStream | SourceSeason>
+  ) => Stream.Stream<SourceStream | SourceStreamWithFile | SourceSeason>
 }
 
 export interface Embellisher {

@@ -22,16 +22,20 @@ import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { qualityFromTitle } from "../Utils.js"
 import { PersistenceLive } from "../Persistence.js"
+import { TorrentMeta } from "../TorrentMeta.js"
 
 export const SourceEztvLive = Effect.gen(function* () {
+  const torrentMeta = yield* TorrentMeta
   const sources = yield* Sources
-  const client = (yield* HttpClient.HttpClient).pipe(
-    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
+  const defaultClient = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.retryTransient({
       times: 5,
       schedule: Schedule.exponential(100),
     }),
+  )
+  const client = defaultClient.pipe(
+    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
   )
 
   class GetPage extends Schema.TaggedRequest<GetPage>()("GetPage", {
@@ -68,10 +72,10 @@ export const SourceEztvLive = Effect.gen(function* () {
   })
 
   const stream = (imdbId: string) =>
-    Stream.paginateChunkEffect(1, page =>
+    Stream.paginateChunkEffect(1, (page) =>
       pipe(
         getPageCache.get(new GetPage({ imdbId, page })),
-        Effect.map(_ => [
+        Effect.map((_) => [
           _.torrents,
           Option.some(page + 1).pipe(
             Option.filter(() => _.torrents.length < _.limit),
@@ -80,15 +84,58 @@ export const SourceEztvLive = Effect.gen(function* () {
       ),
     ).pipe(Stream.catchAllCause(() => Stream.empty))
 
+  const seasonSources = (torrent: Torrent) =>
+    defaultClient.get(torrent.torrent_url).pipe(
+      Effect.flatMap((res) => res.arrayBuffer),
+      Effect.scoped,
+      Effect.flatMap((buffer) => torrentMeta.parse(buffer)),
+      Effect.map((meta) =>
+        Stream.fromIterable(
+          meta.streams({
+            source: "EZTV",
+            seeds: torrent.seeds,
+            peers: torrent.peers,
+          }),
+        ),
+      ),
+      Effect.catchAllCause(() => Effect.succeed(Stream.empty)),
+      Effect.withSpan("Source.Eztv.seasonSources", {
+        attributes: { title: torrent.title, hash: torrent.hash },
+      }),
+      Stream.unwrap,
+    )
+
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
+      Match.tag("ImdbSeasonQuery", ({ imdbId, season }) =>
+        stream(imdbId).pipe(
+          Stream.filter(
+            (torrent) => torrent.season === season && torrent.episode === 0,
+          ),
+          Stream.flatMap((torrent) => seasonSources(torrent)),
+          Stream.catchAllCause((cause) =>
+            Effect.logDebug(cause).pipe(
+              Effect.annotateLogs({
+                service: "Source.Eztv.Season",
+                imdbId,
+                season,
+              }),
+              Stream.drain,
+            ),
+          ),
+          Stream.withSpan("Source.Eztv.list season", {
+            attributes: { imdbId, season },
+          }),
+        ),
+      ),
       Match.tag("ImdbSeriesQuery", ({ imdbId, season, episode }) =>
         stream(imdbId).pipe(
           Stream.filter(
-            tor => tor.season === season && tor.episode === episode,
+            (torrent) =>
+              torrent.season === season && torrent.episode === episode,
           ),
-          Stream.map(tor => tor.asStream),
-          Stream.catchAllCause(cause =>
+          Stream.map((torrent) => torrent.asStream),
+          Stream.catchAllCause((cause) =>
             Effect.logDebug(cause).pipe(
               Effect.annotateLogs({
                 service: "Source.Eztv.Series",
@@ -107,7 +154,10 @@ export const SourceEztvLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
+}).pipe(
+  Layer.scopedDiscard,
+  Layer.provide([Sources.Default, PersistenceLive, TorrentMeta.Default]),
+)
 
 // schemas
 

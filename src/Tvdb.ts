@@ -73,7 +73,7 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
           Effect.flatMap(Episode.decodeResponse),
           Effect.scoped,
           Effect.orDie,
-          Effect.map(_ => _.data),
+          Effect.map((_) => _.data),
           Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
         ),
       timeToLive: (_, exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),

@@ -1,13 +1,13 @@
 import { HttpClient, HttpClientRequest } from "@effect/platform"
 import { Data, Effect, Hash, Option, pipe, PrimaryKey, Schema } from "effect"
-import { infoHashFromMagnet, qualityFromTitle } from "./Utils.js"
+import {
+  infoHashFromMagnet,
+  magnetFromHash,
+  qualityFromTitle,
+} from "./Utils.js"
 import { PersistedCache } from "@effect/experimental"
 import { PersistenceLive } from "./Persistence.js"
-import {
-  SourceSeason,
-  SourceStream,
-  SourceStreamWithFile,
-} from "./Domain/SourceStream.js"
+import { SourceStreamWithFile } from "./Domain/SourceStream.js"
 import ParseTorrent from "parse-torrent"
 
 export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
@@ -38,9 +38,9 @@ export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
       lookup: ({ infoHash }: HashRequest) =>
         pipe(
           client.get(`/${infoHash}.torrent`),
-          Effect.flatMap(_ => _.arrayBuffer),
+          Effect.flatMap((_) => _.arrayBuffer),
           Effect.scoped,
-          Effect.flatMap(buffer =>
+          Effect.flatMap((buffer) =>
             Effect.promise(() => ParseTorrent(new Uint8Array(buffer)) as any),
           ),
           Effect.flatMap(Schema.decodeUnknown(TorrentMetadata)),
@@ -50,6 +50,12 @@ export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
         exit._tag === "Failure" ? "1 minute" : "3 days",
       inMemoryCapacity: 8,
     })
+
+    const parse = (buffer: ArrayBuffer) =>
+      Effect.promise(() => ParseTorrent(new Uint8Array(buffer)) as any).pipe(
+        Effect.flatMap(Schema.decodeUnknown(TorrentMetadata)),
+        Effect.orDie,
+      )
 
     const fromMagnet = (magnet: string) =>
       pipe(
@@ -65,7 +71,7 @@ export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
         Effect.withSpan("TorrentMeta.fromHash", { attributes: { hash } }),
       )
 
-    return { fromMagnet, fromHash } as const
+    return { fromMagnet, fromHash, parse } as const
   }),
   dependencies: [PersistenceLive],
 }) {}
@@ -79,21 +85,27 @@ export class TorrentFile extends Schema.Class<TorrentFile>("TorrentFile")({
 export class TorrentMetadata extends Schema.Class<TorrentMetadata>(
   "TorrentMeta/TorrentMetadata",
 )({
+  name: Schema.String,
+  infoHash: Schema.String,
   files: Schema.NonEmptyArray(TorrentFile),
 }) {
-  streams(season: SourceSeason | SourceStream): Array<SourceStreamWithFile> {
+  streams(options: {
+    readonly source: string
+    readonly seeds: number
+    readonly peers: number
+  }): Array<SourceStreamWithFile> {
     return this.files
-      .filter(_ => /\.(mp4|mkv|avi)$/.test(_.name))
+      .filter((_) => /\.(mp4|mkv|avi)$/.test(_.name))
       .map(
         (file, index) =>
           new SourceStreamWithFile({
-            source: season.source,
+            source: options.source,
             title: file.name,
-            infoHash: season.infoHash,
-            magnetUri: season.magnetUri,
+            infoHash: this.infoHash,
+            magnetUri: magnetFromHash(this.infoHash),
             quality: qualityFromTitle(file.name),
-            seeds: season.seeds,
-            peers: season.peers,
+            seeds: options.seeds,
+            peers: options.peers,
             sizeBytes: file.length,
             fileNumber: index,
           }),

@@ -61,7 +61,7 @@ export const layerAddon = Effect.gen(function* () {
   const manifest = yield* StremioManifest
   const cinemeta = yield* Cinemeta
   const baseUrl = yield* Config.string("baseUrl").pipe(
-    Config.map(url => new URL(url)),
+    Config.map((url) => new URL(url)),
     Config.option,
   )
   const token = yield* Config.redacted("token")
@@ -93,14 +93,14 @@ export const layerAddon = Effect.gen(function* () {
             }
           }
         }),
-        Effect.tap(request => Effect.log("StreamRequest", request)),
+        Effect.tap((request) => Effect.log("StreamRequest", request)),
         Effect.bindTo("streamRequest"),
         Effect.bind("request", () => HttpServerRequest.HttpServerRequest),
         Effect.let("baseUrl", ({ request }) =>
           baseUrl.pipe(
             Option.orElse(() => HttpServerRequest.toURL(request)),
             Option.getOrElse(() => new URL("http://localhost:8000")),
-            url => {
+            (url) => {
               url.pathname = Redacted.value(token)
               return url
             },
@@ -112,9 +112,9 @@ export const layerAddon = Effect.gen(function* () {
             ? Effect.zipLeft(list, preloadNextEpisode(streamRequest, baseUrl))
             : list
         }),
-        Effect.map(streams =>
+        Effect.map((streams) =>
           HttpServerResponse.unsafeJson({
-            streams: streams.map(_ => _.asStremio),
+            streams: streams.map((_) => _.asStremio),
           }),
         ),
       ),
@@ -124,10 +124,10 @@ export const layerAddon = Effect.gen(function* () {
   const preloadNextEpisode = (current: StreamRequest.Series, baseUrl: URL) =>
     pipe(
       cinemeta.lookupSeries(current.imdbId),
-      Effect.flatMap(series =>
+      Effect.flatMap((series) =>
         series.findEpisode(current.season, current.episode + 1),
       ),
-      Effect.flatMap(video =>
+      Effect.flatMap((video) =>
         sources.list(
           StreamRequest.Series({
             ...current,

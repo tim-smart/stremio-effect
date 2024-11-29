@@ -56,7 +56,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
         client.get(`/movie/${req.imdbId}.json`).pipe(
           Effect.flatMap(Movie.decodeResponse),
           Effect.scoped,
-          Effect.map(_ => _.meta),
+          Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
         ),
@@ -84,7 +84,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
         client.get(`/series/${imdbID}.json`).pipe(
           Effect.flatMap(Series.decodeResponse),
           Effect.scoped,
-          Effect.map(_ => _.meta),
+          Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
         ),
@@ -123,7 +123,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
           ]
         }
         const info = yield* series.findEpisode(season, episode).pipe(
-          Effect.flatMap(_ => Effect.fromNullable(_.tvdb_id)),
+          Effect.flatMap((_) => Effect.fromNullable(_.tvdb_id)),
           Effect.flatMap(tvdb.lookupEpisode),
           Effect.option,
         )
@@ -185,7 +185,7 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   findEpisode(season: number, episode: number) {
     return Array.findFirst(
       this.videos,
-      _ => _.season === season && _.episodeOrNumber === episode,
+      (_) => _.season === season && _.episodeOrNumber === episode,
     )
   }
   absoluteQueries(
@@ -193,8 +193,8 @@ export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
     episode: number,
   ): Option.Option<Array<AbsoluteSeriesQuery | ImdbAbsoluteSeriesQuery>> {
     const index = this.videos
-      .filter(_ => _.season > 0)
-      .findIndex(_ => _.season === season && _.episodeOrNumber === episode)
+      .filter((_) => _.season > 0)
+      .findIndex((_) => _.season === season && _.episodeOrNumber === episode)
     return index >= 0
       ? Option.some([
           new AbsoluteSeriesQuery({ title: this.name, number: index + 1 }),
@@ -229,7 +229,7 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
 }> {
   get absoluteQueries() {
     return this.info.pipe(
-      Option.map(info => [
+      Option.map((info) => [
         new AbsoluteSeriesQuery({
           title: this.series.name,
           number: info.absoluteNumber,
@@ -261,7 +261,7 @@ export class AnimationEpisodeResult extends Data.TaggedClass(
     })
     return Option.match(this.absoluteQueries, {
       onNone: () => [series, ...seasons],
-      onSome: absolute => [...absolute, series, ...seasons],
+      onSome: (absolute) => [...absolute, series, ...seasons],
     })
   }
 }

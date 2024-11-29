@@ -31,13 +31,13 @@ export const SourceNyaaLive = Effect.gen(function* () {
             q: request.asQuery,
           },
         }),
-        Effect.flatMap(r => r.text),
+        Effect.flatMap((r) => r.text),
         Effect.scoped,
-        Effect.map(html =>
+        Effect.map((html) =>
           pipe(
             parseResults(html),
             Array.map(
-              result =>
+              (result) =>
                 new SourceStream({
                   source: "Nyaa",
                   infoHash: infoHashFromMagnet(result.magnet),
@@ -85,7 +85,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
   const sources = yield* Sources
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
-      Match.tag("AbsoluteSeriesQuery", query =>
+      Match.tag("AbsoluteSeriesQuery", (query) =>
         searchCache.get(query).pipe(
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),

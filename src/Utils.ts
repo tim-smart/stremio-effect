@@ -88,9 +88,9 @@ export const cacheWithSpan = <K, A, E, R>(options: {
       ),
   }).pipe(
     Effect.map(
-      cache => (req: K) =>
+      (cache) => (req: K) =>
         Effect.serviceOption(Tracer.ParentSpan).pipe(
-          Effect.flatMap(span =>
+          Effect.flatMap((span) =>
             cache.get(new SpanRequest({ span, request: req })),
           ),
         ),

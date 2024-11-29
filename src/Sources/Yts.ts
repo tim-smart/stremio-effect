@@ -54,7 +54,7 @@ export const SourceYtsLive = Effect.gen(function* () {
         Effect.flatMap(MovieDetails.decodeResponse),
         Effect.scoped,
         Effect.orDie,
-        Effect.map(_ => _.data.movie),
+        Effect.map((_) => _.data.movie),
         Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
       ),
     timeToLive: (_, exit) => {
@@ -68,7 +68,7 @@ export const SourceYtsLive = Effect.gen(function* () {
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", ({ imdbId }) =>
         details.get(new DetailsRequest({ imdbId })).pipe(
-          Effect.map(_ => _.streams),
+          Effect.map((_) => _.streams),
           Effect.tapErrorCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Yts.Imdb", { attributes: { imdbId } }),
@@ -130,7 +130,7 @@ export class Movie extends S.Class<Movie>("Movie")({
       return []
     }
     return this.torrents.map(
-      tor =>
+      (tor) =>
         new SourceStream({
           source: "YTS",
           title: this.title || this.title_long,
