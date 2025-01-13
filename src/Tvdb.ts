@@ -90,7 +90,6 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
 export class Season extends S.Class<Season>("Season")({
   id: S.Number,
   seriesId: S.Number,
-  name: S.optional(S.Union(S.Null, S.String)),
   number: S.Number,
   lastUpdated: S.String,
 }) {}
@@ -98,7 +97,6 @@ export class Season extends S.Class<Season>("Season")({
 export class EpisodeData extends S.Class<EpisodeData>("Data")({
   id: S.Number,
   seriesId: S.Number,
-  name: S.String,
   isMovie: S.Number,
   seasons: S.Array(Season),
   number: S.Number,
