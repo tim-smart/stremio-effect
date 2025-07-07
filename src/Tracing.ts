@@ -1,6 +1,5 @@
-import * as NodeSdk from "@effect/opentelemetry/NodeSdk"
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http"
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base"
+import * as OtlpTracer from "@effect/opentelemetry/OtlpTracer"
+import { NodeHttpClient } from "@effect/platform-node"
 import { Config, Effect, Layer, Redacted } from "effect"
 
 export const TracingLive = Layer.unwrapEffect(
@@ -17,14 +16,12 @@ export const TracingLive = Layer.unwrapEffect(
       if (endpoint._tag === "None") {
         return Layer.empty
       }
-      return NodeSdk.layer(() => ({
+      return OtlpTracer.layer({
         resource: {
           serviceName: dataset,
         },
-        spanProcessor: new BatchSpanProcessor(
-          new OTLPTraceExporter({ url: `${endpoint.value}/v1/traces` }),
-        ),
-      }))
+        url: `${endpoint.value}/v1/traces`,
+      })
     }
 
     const headers = {
@@ -32,16 +29,12 @@ export const TracingLive = Layer.unwrapEffect(
       "X-Honeycomb-Dataset": dataset,
     }
 
-    return NodeSdk.layer(() => ({
+    return OtlpTracer.layer({
       resource: {
         serviceName: dataset,
       },
-      spanProcessor: new BatchSpanProcessor(
-        new OTLPTraceExporter({
-          url: "https://api.honeycomb.io/v1/traces",
-          headers,
-        }),
-      ),
-    }))
+      url: "https://api.honeycomb.io/v1/traces",
+      headers,
+    })
   }),
-)
+).pipe(Layer.provide(NodeHttpClient.layerUndici))

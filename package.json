@@ -12,27 +12,24 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@effect/experimental": "^0.36.1",
-    "@effect/opentelemetry": "^0.42.1",
-    "@effect/platform": "^0.72.1",
-    "@effect/platform-bun": "^0.52.1",
-    "@effect/platform-node": "^0.68.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
-    "@opentelemetry/sdk-trace-base": "^1.30.0",
-    "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@effect/experimental": "^0.51.11",
+    "@effect/opentelemetry": "^0.53.11",
+    "@effect/platform": "^0.87.10",
+    "@effect/platform-bun": "^0.72.14",
+    "@effect/platform-node": "^0.89.2",
     "@types/parse-torrent": "^5.8.7",
-    "@types/stremio-addon-sdk": "^1.6.11",
-    "bun-types": "^1.1.43",
-    "cheerio": "1.0.0",
-    "effect": "^3.12.1",
+    "@types/stremio-addon-sdk": "^1.6.12",
+    "bun-types": "^1.2.18",
+    "cheerio": "1.1.0",
+    "effect": "^3.16.12",
     "parse-torrent": "^11.0.18",
-    "prettier": "^3.4.2",
+    "prettier": "^3.6.2",
     "stremio-addon-sdk": "^1.6.10",
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.6.1"
   }
 }
