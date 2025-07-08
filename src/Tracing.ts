@@ -34,7 +34,7 @@ export const TracingLive = Layer.unwrapEffect(
       resource: {
         serviceName: dataset,
       },
-      baseUrl: "https://api.honeycomb.io/",
+      baseUrl: "https://api.honeycomb.io",
       headers,
       replaceLogger: Logger.tracerLogger,
     })
