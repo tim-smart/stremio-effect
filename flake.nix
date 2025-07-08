@@ -16,7 +16,7 @@
           nativeBuildInputs = with pkgs; [
             bun
             corepack
-            nodejs_22
+            nodejs
           ];
         };
 
@@ -25,25 +25,6 @@
             inputs.services-flake.processComposeModules.default
           ];
 
-          services.tempo.tempo.enable = true;
-          services.grafana.grafana = {
-            enable = true;
-            http_port = 4000;
-            extraConf = {
-              "auth.anonymous" = {
-                enabled = true;
-                org_role = "Editor";
-              };
-            };
-            datasources = with config.services.tempo.tempo; [
-              {
-                name = "Tempo";
-                type = "tempo";
-                access = "proxy";
-                url = "http://${httpAddress}:${builtins.toString httpPort}";
-              }
-            ];
-          };
           services.redis.redis.enable = true;
           settings.processes.tsx = {
             command = "tsx --watch src/main.ts";

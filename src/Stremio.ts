@@ -9,9 +9,7 @@ import {
   Redacted,
 } from "effect"
 import {
-  HttpMiddleware,
-  HttpRouter,
-  HttpServer,
+  HttpLayerRouter,
   HttpServerRequest,
   HttpServerResponse,
 } from "@effect/platform"
@@ -25,7 +23,7 @@ export interface AddonConfig {
   readonly manifest: Stremio.Manifest
 }
 
-const streamParams = HttpRouter.params as Effect.Effect<{
+const streamParams = HttpLayerRouter.params as Effect.Effect<{
   readonly type: Stremio.ContentType
   readonly id: string
 }>
@@ -52,11 +50,22 @@ export const streamRequestId = StreamRequest.$match({
   Tv: ({ imdbId }) => `Tv:${imdbId}`,
 })
 
-export class StremioRouter extends HttpRouter.Tag(
-  "stremio/StremioRouter",
-)<StremioRouter>() {}
+export class StremioRouter extends Context.Tag("stremio/StremioRouter")<
+  StremioRouter,
+  HttpLayerRouter.HttpRouter
+>() {
+  static layer = Layer.effect(
+    StremioRouter,
+    Effect.gen(function* () {
+      const router = yield* HttpLayerRouter.HttpRouter
+      const token = yield* Config.redacted("token")
+      return router.prefixed(`/${Redacted.value(token)}`)
+    }).pipe(Effect.withConfigProvider(configProviderNested("addon"))),
+  )
+}
 
-export const layerAddon = Effect.gen(function* () {
+const ApiRoutes = Effect.gen(function* () {
+  const router = yield* StremioRouter
   const sources = yield* Sources
   const manifest = yield* StremioManifest
   const cinemeta = yield* Cinemeta
@@ -67,9 +76,14 @@ export const layerAddon = Effect.gen(function* () {
   const token = yield* Config.redacted("token")
   const scope = yield* Effect.scope
 
-  const apiRouter = (yield* StremioRouter.router).pipe(
-    HttpRouter.get("/manifest.json", HttpServerResponse.unsafeJson(manifest)),
-    HttpRouter.get(
+  yield* router.addAll([
+    HttpLayerRouter.route(
+      "GET",
+      "/manifest.json",
+      HttpServerResponse.unsafeJson(manifest),
+    ),
+    HttpLayerRouter.route(
+      "GET",
       "/stream/:type/:id.json",
       streamParams.pipe(
         Effect.map(({ type, id }) => {
@@ -119,7 +133,7 @@ export const layerAddon = Effect.gen(function* () {
         ),
       ),
     ),
-  )
+  ])
 
   const preloadNextEpisode = (current: StreamRequest.Series, baseUrl: URL) =>
     pipe(
@@ -142,21 +156,21 @@ export const layerAddon = Effect.gen(function* () {
       }),
       Effect.forkIn(scope),
     )
-
-  return HttpRouter.empty.pipe(
-    HttpRouter.get("/health", HttpServerResponse.text("OK")),
-    HttpRouter.mount(`/${Redacted.value(token)}`, apiRouter),
-    HttpMiddleware.cors(),
-    HttpServer.serve(HttpMiddleware.logger),
-    HttpServer.withLogAddress,
-  )
 }).pipe(
   Effect.withConfigProvider(configProviderNested("addon")),
-  Layer.unwrapScoped,
+  Layer.scopedDiscard,
   Layer.annotateLogs({ service: "Stremio" }),
-  Layer.provide(Sources.Default),
-  Layer.provide(Cinemeta.Default),
-  Layer.provide(StremioRouter.Live),
+  Layer.provide([Cinemeta.Default, Sources.Default, StremioRouter.layer]),
+)
+
+const HealthRoute = HttpLayerRouter.add(
+  "GET",
+  "/health",
+  HttpServerResponse.text("OK"),
+).pipe(Layer.provide(HttpLayerRouter.disableLogger))
+
+const AllRoutes = Layer.mergeAll(ApiRoutes, HealthRoute).pipe(
+  Layer.provide(HttpLayerRouter.cors()),
 )
 
 export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
@@ -165,5 +179,5 @@ export class StremioManifest extends Context.Tag("stremio/StremioManifest")<
 >() {
   static layer = (manifest: Stremio.Manifest) => Layer.succeed(this, manifest)
   static addon = (manifest: Stremio.Manifest) =>
-    layerAddon.pipe(Layer.provide(this.layer(manifest)))
+    AllRoutes.pipe(Layer.provide(this.layer(manifest)))
 }

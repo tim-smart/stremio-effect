@@ -27,7 +27,7 @@ import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
 
-export const RealDebridLive = Effect.gen(function* () {
+export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
   const apiKey = yield* Config.redacted("apiKey")
 
@@ -175,7 +175,8 @@ export const RealDebridLive = Effect.gen(function* () {
       file: Schema.String,
     }),
   )
-  yield* router.get(
+  yield* router.add(
+    "GET",
     "/real-debrid/:hash/:file",
     resolveParams.pipe(
       Effect.flatMap(({ hash: infoHash, file }) =>
@@ -206,7 +207,7 @@ export const RealDebridLive = Effect.gen(function* () {
     service: "RealDebrid",
   }),
   Layer.scopedDiscard,
-  Layer.provide([Sources.Default, StremioRouter.Live, PersistenceLive]),
+  Layer.provide([Sources.Default, StremioRouter.layer, PersistenceLive]),
 )
 
 const AddMagnetResponse = Schema.Struct({
