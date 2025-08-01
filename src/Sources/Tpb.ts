@@ -1,32 +1,23 @@
-import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
-} from "@effect/platform"
-import {
-  Array,
-  Effect,
-  Hash,
-  Layer,
-  Match,
-  Option,
-  pipe,
-  PrimaryKey,
-  Schedule,
-  Stream,
-} from "effect"
-import * as S from "effect/Schema"
+} from "effect/unstable/http"
+import { Effect, Layer, pipe, Schedule } from "effect"
 import {
   SourceSeason,
   SourceStream,
   SourceStreamWithFile,
 } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
-import { PersistenceLive } from "../Persistence.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
-import { PersistenceError } from "@effect/experimental/Persistence"
+import { Schema as S } from "effect/schema"
+import { Data, Option } from "effect/data"
+import { Cache } from "effect/caching"
+import { Match } from "effect/match"
+import { Array } from "effect/collections"
+import { Stream } from "effect/stream"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -41,62 +32,48 @@ export const SourceTpbLive = Effect.gen(function* () {
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
   )
 
-  class SearchRequest extends S.TaggedRequest<SearchRequest>()(
-    "SearchRequest",
-    {
-      failure: S.Never,
-      success: S.Array(SearchResult),
-      payload: { imdbId: S.String },
-    },
-  ) {
-    [PrimaryKey.symbol]() {
-      return Hash.hash(this).toString()
-    }
+  class SearchRequest extends Data.Class<{ imdbId: string }> {
+    // [PrimaryKey.symbol]() {
+    //   return Hash.hash(this).toString()
+    // }
   }
 
-  const search = yield* PersistedCache.make({
-    storeId: "Source.Tpb.search",
+  const search = yield* Cache.makeWith({
+    // storeId: "Source.Tpb.search",
     lookup: ({ imdbId }: SearchRequest) =>
       client.get("/q.php", { urlParams: { q: imdbId } }).pipe(
         Effect.flatMap(SearchResult.decodeResponse),
-        Effect.scoped,
         Effect.orDie,
         Effect.map((results) => (results[0].id === "0" ? [] : results)),
         Effect.withSpan("Source.Tpb.search", {
           attributes: { imdbId },
         }),
       ),
-    timeToLive: (_, exit) => {
+    timeToLive: (exit) => {
       if (exit._tag === "Failure") return "5 minutes"
       return exit.value.length > 0 ? "3 days" : "6 hours"
     },
-    inMemoryCapacity: 8,
+    capacity: 128,
   })
 
-  class FilesRequest extends S.TaggedRequest<FilesRequest>()("FilesRequest", {
-    failure: S.Never,
-    success: File.Array,
-    payload: { id: S.String },
-  }) {
-    [PrimaryKey.symbol]() {
-      return Hash.hash(this).toString()
-    }
+  class FilesRequest extends Data.Class<{ id: string }> {
+    // [PrimaryKey.symbol]() {
+    //   return Hash.hash(this).toString()
+    // }
   }
 
-  const files = yield* PersistedCache.make({
-    storeId: "Source.Tpb.files",
+  const files = yield* Cache.makeWith({
+    // storeId: "Source.Tpb.files",
     lookup: ({ id }: FilesRequest) =>
       client.get("/f.php", { urlParams: { id } }).pipe(
         Effect.flatMap(HttpClientResponse.schemaBodyJson(File.Array)),
-        Effect.scoped,
         Effect.orElseSucceed(() => []),
-        Effect.withUnhandledErrorLogLevel(Option.none()),
         Effect.withSpan("Source.Tpb.files", {
           attributes: { id },
         }),
       ),
-    timeToLive: (_, exit) => (exit._tag === "Failure" ? "5 minutes" : "3 days"),
-    inMemoryCapacity: 8,
+    timeToLive: (exit) => (exit._tag === "Failure" ? "5 minutes" : "3 days"),
+    capacity: 128,
   })
 
   yield* sources.register({
@@ -104,21 +81,18 @@ export const SourceTpbLive = Effect.gen(function* () {
       Match.tag("ImdbSeasonQuery", (query) => {
         if (Option.isNone(query.titleMatcher)) return Stream.empty
         const titleMatcher = query.titleMatcher.value
-        return search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
-          Stream.flatMap((results) =>
-            Stream.fromIterable(results.filter((_) => titleMatcher(_.name))),
-          ),
+        return Cache.get(
+          search,
+          new SearchRequest({ imdbId: query.imdbId }),
+        ).pipe(
+          Effect.map(Array.filter((_) => titleMatcher(_.name))),
+          Stream.fromIterableEffect,
           Stream.flatMap(
             (result) =>
               pipe(
-                files.get(new FilesRequest({ id: result.id })),
+                Cache.get(files, new FilesRequest({ id: result.id })),
                 Effect.map(
-                  (
-                    files,
-                  ): Stream.Stream<
-                    SourceSeason | SourceStreamWithFile,
-                    PersistenceError
-                  > =>
+                  (files): Stream.Stream<SourceSeason | SourceStreamWithFile> =>
                     Array.match(files, {
                       onEmpty: () => Stream.make(result.asSeason),
                       onNonEmpty: (files) =>
@@ -151,9 +125,9 @@ export const SourceTpbLive = Effect.gen(function* () {
         )
       }),
       Match.tag("ImbdMovieQuery", "ImdbSeriesQuery", (query) =>
-        search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
+        Cache.get(search, new SearchRequest({ imdbId: query.imdbId })).pipe(
           Effect.map(Array.map((result) => result.asStream)),
-          Effect.tapErrorCause(Effect.logDebug),
+          Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Tpb.Imdb", { attributes: { query } }),
           Effect.annotateLogs({
@@ -167,7 +141,7 @@ export const SourceTpbLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
+}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
 
 // schemas
 
@@ -175,10 +149,10 @@ export class SearchResult extends S.Class<SearchResult>("SearchResult")({
   id: S.String,
   name: S.String,
   info_hash: S.String,
-  leechers: S.NumberFromString,
-  seeders: S.NumberFromString,
+  leechers: S.FiniteFromString,
+  seeders: S.FiniteFromString,
   num_files: S.String,
-  size: S.NumberFromString,
+  size: S.FiniteFromString,
   username: S.String,
   added: S.String,
   category: S.String,

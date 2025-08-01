@@ -1,25 +1,18 @@
-import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
-} from "@effect/platform"
-import {
-  Config,
-  Data,
-  Effect,
-  PrimaryKey,
-  Redacted,
-  Schedule,
-  Schema,
-} from "effect"
-import * as S from "effect/Schema"
-import { PersistenceLive } from "./Persistence.js"
+} from "effect/unstable/http"
+import { Effect, Layer, Schedule, ServiceMap } from "effect"
 import { configProviderNested } from "./Utils.js"
+import { Config, ConfigProvider } from "effect/config"
+import { Cache } from "effect/caching"
+import { Schema as S, Schema } from "effect/schema"
+import { Data, Redacted } from "effect/data"
 
-export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
-  scoped: Effect.gen(function* () {
-    const apiKey = yield* Config.redacted("apiKey")
+export class Tvdb extends ServiceMap.Key<Tvdb>()("Tvdb", {
+  make: Effect.gen(function* () {
+    const apiKey = yield* Config.Redacted("apiKey")
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4"),
@@ -40,7 +33,7 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
         HttpClientResponse.schemaBodyJson(
           Schema.Struct({
             data: Schema.Struct({
-              token: Schema.Redacted(Schema.String),
+              token: Schema.String,
             }),
           }),
         ),
@@ -49,25 +42,23 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
     )
 
     const clientWithToken = client.pipe(
-      HttpClient.mapRequest(
-        HttpClientRequest.bearerToken(Redacted.value(apiToken.data.token)),
-      ),
+      HttpClient.mapRequest(HttpClientRequest.bearerToken(apiToken.data.token)),
     )
 
     class LookupEpisode extends Data.Class<{ id: number }> {
-      [PrimaryKey.symbol]() {
-        return this.id.toString()
-      }
-      get [Schema.symbolWithResult]() {
-        return {
-          success: EpisodeData,
-          failure: Schema.Never,
-        }
-      }
+      // [PrimaryKey.symbol]() {
+      //   return this.id.toString()
+      // }
+      // get [Schema.symbolWithResult]() {
+      //   return {
+      //     success: EpisodeData,
+      //     failure: Schema.Never,
+      //   }
+      // }
     }
 
-    const lookupEpisodeCache = yield* PersistedCache.make({
-      storeId: "Tvdb.lookupEpisode",
+    const lookupEpisodeCache = yield* Cache.makeWith({
+      // storeId: "Tvdb.lookupEpisode",
       lookup: ({ id }: LookupEpisode) =>
         clientWithToken.get(`/episodes/${id}`).pipe(
           Effect.flatMap(Episode.decodeResponse),
@@ -76,16 +67,23 @@ export class Tvdb extends Effect.Service<Tvdb>()("Tvdb", {
           Effect.map((_) => _.data),
           Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
         ),
-      timeToLive: (_, exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),
-      inMemoryCapacity: 16,
+      timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),
+      capacity: 512,
     })
     const lookupEpisode = (id: number) =>
-      lookupEpisodeCache.get(new LookupEpisode({ id }))
+      Cache.get(lookupEpisodeCache, new LookupEpisode({ id }))
 
     return { lookupEpisode } as const
-  }).pipe(Effect.withConfigProvider(configProviderNested("tvdb"))),
-  dependencies: [PersistenceLive],
-}) {}
+  }).pipe(
+    Effect.provideService(
+      ConfigProvider.ConfigProvider,
+      configProviderNested("tvdb"),
+    ),
+  ),
+  // dependencies: [PersistenceLive],
+}) {
+  static layer = Layer.effect(this)(this.make)
+}
 
 export class Season extends S.Class<Season>("Season")({
   id: S.Number,

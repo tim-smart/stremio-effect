@@ -1,19 +1,5 @@
-import * as PersistedCache from "@effect/experimental/PersistedCache"
-import {
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "@effect/platform"
-import {
-  Array,
-  Data,
-  Effect,
-  Option,
-  PrimaryKey,
-  Schedule,
-  Schema,
-} from "effect"
-import * as S from "effect/Schema"
+import { Effect, Layer, Schedule, ServiceMap } from "effect"
+import { Cache } from "effect/caching"
 import {
   AbsoluteSeriesQuery,
   ImdbAbsoluteSeriesQuery,
@@ -21,11 +7,19 @@ import {
   SeasonQuery,
   SeriesQuery,
 } from "./Domain/VideoQuery.js"
-import { PersistenceLive } from "./Persistence.js"
 import { EpisodeData, Tvdb } from "./Tvdb.js"
+import {
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+} from "effect/unstable/http"
+import { Data, Option } from "effect/data"
+import { PrimaryKey } from "effect/interfaces"
+import { Schema as S } from "effect/schema"
+import { Array } from "effect/collections"
 
-export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
-  scoped: Effect.gen(function* () {
+export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
+  make: Effect.gen(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://v3-cinemeta.strem.io/meta"),
@@ -42,58 +36,53 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
       [PrimaryKey.symbol]() {
         return this.imdbId
       }
-      get [S.symbolWithResult]() {
-        return {
-          success: MovieMeta,
-          failure: Schema.Never,
-        }
-      }
+      // get [S.symbolWithResult]() {
+      //   return {
+      //     success: MovieMeta,
+      //     failure: Schema.Never,
+      //   }
+      // }
     }
 
-    const lookupMovieCache = yield* PersistedCache.make({
-      storeId: "Cinemeta.lookupMovie",
+    const lookupMovieCache = yield* Cache.makeWith({
       lookup: (req: LookupMovie) =>
         client.get(`/movie/${req.imdbId}.json`).pipe(
           Effect.flatMap(Movie.decodeResponse),
-          Effect.scoped,
           Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
         ),
-      timeToLive: (_, exit) =>
-        exit._tag === "Success" ? "1 week" : "5 minutes",
-      inMemoryCapacity: 8,
+      capacity: 1024,
+      timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
     })
     const lookupMovie = (imdbID: string) =>
-      lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
+      Cache.get(lookupMovieCache, new LookupMovie({ imdbId: imdbID }))
 
     class LookupSeries extends Data.Class<{ imdbID: string }> {
       [PrimaryKey.symbol]() {
         return this.imdbID
       }
-      get [S.symbolWithResult]() {
-        return {
-          success: SeriesMeta,
-          failure: Schema.Never,
-        }
-      }
+      // get [S.symbolWithResult]() {
+      //   return {
+      //     success: SeriesMeta,
+      //     failure: Schema.Never,
+      //   }
+      // }
     }
-    const lookupSeriesCache = yield* PersistedCache.make({
-      storeId: "Cinemeta.lookupSeries",
+    const lookupSeriesCache = yield* Cache.makeWith({
       lookup: ({ imdbID }: LookupSeries) =>
         client.get(`/series/${imdbID}.json`).pipe(
           Effect.flatMap(Series.decodeResponse),
-          Effect.scoped,
           Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
         ),
-      timeToLive: (_, exit) =>
+      timeToLive: (exit) =>
         exit._tag === "Success" ? "12 hours" : "5 minutes",
-      inMemoryCapacity: 8,
+      capacity: 1024,
     })
     const lookupSeries = (imdbID: string) =>
-      lookupSeriesCache.get(new LookupSeries({ imdbID }))
+      Cache.get(lookupSeriesCache, new LookupSeries({ imdbID }))
 
     const tvdb = yield* Tvdb
     const lookupEpisode = (imdbID: string, season: number, episode: number) =>
@@ -113,7 +102,7 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
               info: Option.none(),
             }),
           ]
-        } else if (!series.genres.includes("Animation")) {
+        } else if (!series.genres?.includes("Animation")) {
           return [
             new GeneralEpisodeResult({
               series,
@@ -122,11 +111,14 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
             }),
           ]
         }
-        const info = yield* series.findEpisode(season, episode).pipe(
-          Effect.flatMap((_) => Effect.fromNullable(_.tvdb_id)),
-          Effect.flatMap(tvdb.lookupEpisode),
-          Effect.option,
-        )
+        const info = yield* series
+          .findEpisode(season, episode)
+          .asEffect()
+          .pipe(
+            Effect.flatMap((_) => Effect.fromNullable(_.tvdb_id)),
+            Effect.flatMap(tvdb.lookupEpisode),
+            Effect.option,
+          )
         return [
           new AnimationEpisodeResult({
             series,
@@ -143,13 +135,14 @@ export class Cinemeta extends Effect.Service<Cinemeta>()("Cinemeta", {
 
     return { lookupMovie, lookupSeries, lookupEpisode } as const
   }),
-  dependencies: [Tvdb.Default, PersistenceLive],
-}) {}
+}) {
+  static layer = Layer.effect(this)(this.make).pipe(Layer.provide(Tvdb.layer))
+}
 
 export class Video extends S.Class<Video>("Video")({
   season: S.Number,
   number: S.Number,
-  tvdb_id: S.optional(S.Union(S.Number, S.NumberFromString, S.Null)),
+  tvdb_id: S.optional(S.Union([S.Number, S.FiniteFromString, S.Null])),
   id: S.String,
   episode: S.optional(S.Number),
 }) {
@@ -177,9 +170,9 @@ export class Movie extends S.Class<Movie>("Movie")({
 export class SeriesMeta extends S.Class<SeriesMeta>("SeriesMeta")({
   imdb_id: S.optional(S.String),
   name: S.String,
-  tvdb_id: S.optional(S.Union(S.Number, S.NumberFromString, S.Null)),
+  tvdb_id: S.optional(S.Union([S.Number, S.FiniteFromString, S.Null])),
   id: S.String,
-  genres: S.optionalWith(S.Array(S.String), { default: () => [] }),
+  genres: S.Array(S.String).pipe(S.optionalKey),
   videos: S.Array(Video),
 }) {
   findEpisode(season: number, episode: number) {

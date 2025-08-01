@@ -1,35 +1,26 @@
-import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
   HttpRouter,
   HttpServerResponse,
-} from "@effect/platform"
-import {
-  Array,
-  Config,
-  ConfigProvider,
-  Effect,
-  flow,
-  Hash,
-  Layer,
-  Option,
-  Order,
-  pipe,
-  PrimaryKey,
-  Schedule,
-  Schema,
-} from "effect"
+} from "effect/unstable/http"
+import { Request } from "effect/batching"
+import { Config, ConfigProvider } from "effect/config"
+import { Effect, flow, Layer, pipe, Schedule } from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
-import { PersistenceLive } from "./Persistence.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
-import { magnetFromHash } from "./Utils.js"
+import { configProviderNested, magnetFromHash } from "./Utils.js"
+import { Schema } from "effect/schema"
+import { Array } from "effect/collections"
+import { Cache } from "effect/caching"
+import { Option, Order } from "effect/data"
+import { Stream } from "effect/stream"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
-  const apiKey = yield* Config.redacted("apiKey")
+  const apiKey = yield* Config.Redacted("apiKey")
 
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
@@ -49,12 +40,11 @@ export const RealDebridLayer = Effect.gen(function* () {
     Effect.flatMap(
       HttpClientResponse.schemaBodyJson(
         Schema.Struct({
-          type: Schema.Literal("premium", "free"),
+          type: Schema.Literals(["premium", "free"]),
         }),
       ),
     ),
-    Effect.scoped,
-    Effect.tapErrorCause(Effect.log),
+    Effect.tapCause(Effect.log),
     Effect.cachedWithTTL("1 hour"),
   )
   const userIsPremium = user.pipe(
@@ -68,17 +58,17 @@ export const RealDebridLayer = Effect.gen(function* () {
       HttpClientRequest.bodyUrlParams({ magnet: magnetFromHash(hash) }),
       client.execute,
       Effect.flatMap(decodeAddMagnetResponse),
-      Effect.scoped,
     )
 
   const getTorrentInfo = (id: string) =>
     client.get(`/torrents/info/${id}`).pipe(
       Effect.flatMap(decodeTorrentInfo),
-      Effect.scoped,
-      Effect.tapErrorCause(Effect.log),
+      Effect.tapCause(Effect.log),
       Effect.retry({
-        while: (err) => err._tag === "ParseError",
-        schedule: Schedule.spaced(3000).pipe(Schedule.upTo("5 minutes")),
+        while: (err) => err._tag === "SchemaError",
+        schedule: Schedule.spaced(3000).pipe(
+          Schedule.both(Schedule.during("5 minutes")),
+        ),
       }),
     )
 
@@ -86,43 +76,49 @@ export const RealDebridLayer = Effect.gen(function* () {
     HttpClientRequest.post(`/torrents/selectFiles/${id}`).pipe(
       HttpClientRequest.bodyUrlParams({ files: files.join(",") }),
       client.execute,
-      Effect.scoped,
     )
 
-  const selectLargestFile = (id: string) =>
-    Effect.gen(function* () {
-      const info = yield* getTorrentInfo(id)
-      const largestFile = Array.max(info.files, FileSizeOrder)
-      yield* selectFiles(id, [String(largestFile.id)])
-    })
+  const selectLargestFile = Effect.fnUntraced(function* (id: string) {
+    const info = yield* getTorrentInfo(id)
+    const largestFile = Array.max(info.files, FileSizeOrder)
+    yield* selectFiles(id, [String(largestFile.id)])
+  })
 
   const unrestrictLink = (link: string) =>
     HttpClientRequest.post("/unrestrict/link").pipe(
       HttpClientRequest.bodyUrlParams({ link }),
       client.execute,
       Effect.flatMap(decodeUnrestrictLinkResponse),
-      Effect.scoped,
     )
 
-  class ResolveRequest extends Schema.TaggedRequest<ResolveRequest>()(
-    "ResolveRequest",
+  class ResolveRequest extends Request.TaggedClass("ResolveRequest")<
     {
-      failure: Schema.Never,
-      success: UnrestrictLinkResponse,
-      payload: {
-        infoHash: Schema.String,
-        file: Schema.String,
-      },
+      infoHash: string
+      file: string
     },
-  ) {
-    [PrimaryKey.symbol]() {
-      return Hash.hash(this).toString()
-    }
-  }
-  const resolve = yield* PersistedCache.make({
-    storeId: "RealDebrid.resolve",
-    lookup: (request: ResolveRequest) =>
-      Effect.gen(function* () {
+    typeof UnrestrictLinkResponse.Type
+  > {}
+  //   "ResolveRequest",
+  //   {
+  //     failure: Schema.Never,
+  //     success: UnrestrictLinkResponse,
+  //     payload: {
+  //       infoHash: Schema.String,
+  //       file: Schema.String,
+  //     },
+  //   },
+  // ) {
+  //   [PrimaryKey.symbol]() {
+  //     return Hash.hash(this).toString()
+  //   }
+  // }
+  const resolve = yield* Cache.makeWith<
+    ResolveRequest,
+    { readonly download: string }
+  >({
+    // storeId: "RealDebrid.resolve",
+    lookup: Effect.fnUntraced(
+      function* (request) {
         const torrent = yield* addMagnet(request.infoHash)
         if (request.file === "-1") {
           yield* selectLargestFile(torrent.id)
@@ -132,13 +128,16 @@ export const RealDebridLayer = Effect.gen(function* () {
         const info = yield* getTorrentInfo(torrent.id)
         const link = yield* Effect.fromNullable(info.links[0])
         return yield* unrestrictLink(link)
-      }).pipe(
-        Effect.tapErrorCause(Effect.log),
-        Effect.orDie,
-        Effect.withSpan("RealDebrid.resolve", { attributes: { request } }),
-      ),
-    timeToLive: (_, exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
-    inMemoryCapacity: 4,
+      },
+      Effect.tapCause(Effect.log),
+      Effect.orDie,
+      (effect, request) =>
+        Effect.withSpan(effect, "RealDebrid.resolve", {
+          attributes: { request },
+        }),
+    ),
+    timeToLive: (exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
+    capacity: 1024,
   })
 
   yield* sources.registerEmbellisher({
@@ -160,11 +159,12 @@ export const RealDebridLayer = Effect.gen(function* () {
               ).toString(),
             }),
       ).pipe(
-        Effect.whenEffect(userIsPremium),
+        Effect.when(userIsPremium),
         Effect.map(Option.getOrElse(() => stream)),
         Effect.withSpan("RealDebrid.transform", {
           attributes: { infoHash: stream.infoHash },
         }),
+        Stream.fromEffect,
       ),
   })
 
@@ -180,15 +180,15 @@ export const RealDebridLayer = Effect.gen(function* () {
     "/real-debrid/:hash/:file",
     resolveParams.pipe(
       Effect.flatMap(({ hash: infoHash, file }) =>
-        resolve.get(new ResolveRequest({ infoHash, file })),
+        Cache.get(resolve, new ResolveRequest({ infoHash, file })),
       ),
       Effect.map((url) =>
         HttpServerResponse.empty({ status: 302 }).pipe(
           HttpServerResponse.setHeader("Location", url.download),
         ),
       ),
-      Effect.catchTag("ParseError", () =>
-        HttpServerResponse.empty({ status: 404 }),
+      Effect.catchTag("SchemaError", () =>
+        Effect.succeed(HttpServerResponse.empty({ status: 404 })),
       ),
       Effect.annotateLogs({
         service: "RealDebrid",
@@ -197,17 +197,15 @@ export const RealDebridLayer = Effect.gen(function* () {
     ),
   )
 }).pipe(
-  Effect.withConfigProvider(
-    ConfigProvider.fromEnv().pipe(
-      ConfigProvider.nested("realDebrid"),
-      ConfigProvider.constantCase,
-    ),
+  Effect.provideService(
+    ConfigProvider.ConfigProvider,
+    configProviderNested("realDebrid"),
   ),
   Effect.annotateLogs({
     service: "RealDebrid",
   }),
-  Layer.scopedDiscard,
-  Layer.provide([Sources.Default, StremioRouter.layer, PersistenceLive]),
+  Layer.effectDiscard,
+  Layer.provide([Sources.layer, StremioRouter.layer]),
 )
 
 const AddMagnetResponse = Schema.Struct({

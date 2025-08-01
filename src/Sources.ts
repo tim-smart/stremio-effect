@@ -1,18 +1,4 @@
-import * as PersistedCache from "@effect/experimental/PersistedCache"
-import {
-  Array,
-  Chunk,
-  Data,
-  Effect,
-  Equal,
-  Hash,
-  Iterable,
-  Option,
-  pipe,
-  PrimaryKey,
-  Schema,
-  Stream,
-} from "effect"
+import { Effect, Layer, pipe, ServiceMap } from "effect"
 import { Cinemeta } from "./Cinemeta.js"
 import * as QualityGroup from "./Domain/QualityGroup.js"
 import {
@@ -29,12 +15,16 @@ import {
   nonSeasonQuery,
   VideoQuery,
 } from "./Domain/VideoQuery.js"
-import { PersistenceLive } from "./Persistence.js"
 import { StreamRequest, streamRequestId } from "./Stremio.js"
 import { TorrentMeta } from "./TorrentMeta.js"
+import { Stream } from "effect/stream"
+import { Data, Filter, Option } from "effect/data"
+import { Equal, Hash, PrimaryKey } from "effect/interfaces"
+import { Cache } from "effect/caching"
+import { Array, Iterable } from "effect/collections"
 
-export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
-  scoped: Effect.gen(function* () {
+export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
+  make: Effect.gen(function* () {
     const sources = new Set<Source>()
     const embellishers = new Set<Embellisher>()
     const torrentMeta = yield* TorrentMeta
@@ -62,10 +52,10 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
       Channel: ({ id }) => Stream.make(new ChannelQuery({ id })),
       Movie: ({ imdbId }) =>
         Stream.make(new ImdbMovieQuery({ imdbId })).pipe(
-          Stream.merge(
+          Stream.concat(
             cinemeta.lookupMovie(imdbId).pipe(
               Effect.map((_) => _.queries),
-              Effect.tapErrorCause(Effect.logDebug),
+              Effect.tapCause(Effect.logDebug),
               Effect.orElseSucceed(() => []),
               Effect.withSpan("Sources.queriesFromRequest Movie", {
                 attributes: { imdbId },
@@ -75,7 +65,8 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
                 method: "queriesFromRequest",
                 kind: "Move",
               }),
-              Stream.fromIterableEffect,
+              Stream.fromEffect,
+              Stream.flatMap(Stream.fromIterable),
             ),
           ),
         ),
@@ -84,10 +75,10 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
           new ImdbSeriesQuery({ imdbId, season, episode }),
           new ImdbSeasonQuery({ imdbId, season, episode }),
         ).pipe(
-          Stream.merge(
+          Stream.concat(
             cinemeta.lookupEpisode(imdbId, season, episode).pipe(
               Effect.map((_) => _.flatMap((_) => _.queries)),
-              Effect.tapErrorCause(Effect.logDebug),
+              Effect.tapCause(Effect.logDebug),
               Effect.orElseSucceed(() => []),
               Effect.withSpan("Sources.queriesFromRequest Series", {
                 attributes: { imdbId, season, episode },
@@ -127,19 +118,21 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
           { concurrency: "unbounded" },
         ),
         // filter out non matches
-        Stream.filter(({ sourceResult, nonSeasonQuery }) => {
-          if (
-            sourceResult.quality === "480p" ||
-            sourceResult.quality === "N/A"
-          ) {
-            return false
-          } else if (sourceResult.verified) {
-            return true
-          }
-          return nonSeasonQuery.titleMatcher._tag === "Some"
-            ? nonSeasonQuery.titleMatcher.value(sourceResult.title)
-            : true
-        }),
+        Stream.filter(
+          Filter.fromPredicate(({ sourceResult, nonSeasonQuery }) => {
+            if (
+              sourceResult.quality === "480p" ||
+              sourceResult.quality === "N/A"
+            ) {
+              return false
+            } else if (sourceResult.verified) {
+              return true
+            }
+            return nonSeasonQuery.titleMatcher._tag === "Some"
+              ? nonSeasonQuery.titleMatcher.value(sourceResult.title)
+              : true
+          }),
+        ),
         // embellish the results
         embellishers.size === 0
           ? Stream.bind("result", ({ sourceResult }) =>
@@ -157,18 +150,20 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
               { concurrency: "unbounded" },
             ),
         // filter out non matches
-        Stream.filter(({ nonSeasonQuery, result }) => {
-          if (result.verified) {
-            return true
-          }
-          return nonSeasonQuery.titleMatcher._tag === "Some"
-            ? nonSeasonQuery.titleMatcher.value(result.title)
-            : true
-        }),
+        Stream.filter(
+          Filter.fromPredicate(({ nonSeasonQuery, result }) => {
+            if (result.verified) {
+              return true
+            }
+            return nonSeasonQuery.titleMatcher._tag === "Some"
+              ? nonSeasonQuery.titleMatcher.value(result.title)
+              : true
+          }),
+        ),
         // only keep unique results
         Stream.chunks,
         Stream.mapAccum(new Set<string>(), (hashes, chunk) => {
-          const filtered = Chunk.filter(chunk, ({ result }) => {
+          const filtered = chunk.filter(({ result }) => {
             const hash = result.infoHash.toLowerCase()
             if (hashes.has(hash)) {
               return false
@@ -178,7 +173,6 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
           })
           return [hashes, filtered]
         }),
-        Stream.flattenChunks,
         // group by quality and return
         Stream.map((_) => _.result),
         Stream.scan(QualityGroup.empty(), QualityGroup.unsafeAdd),
@@ -196,13 +190,11 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
     const streamsFromSeason = (season: SourceSeason) =>
       pipe(
         torrentMeta.fromMagnet(season.magnetUri),
-        Effect.map((result) =>
-          Stream.fromChunk(Chunk.unsafeFromArray(result.streams(season))),
-        ),
+        Effect.map((result) => Stream.fromArray(result.streams(season))),
         Effect.withSpan("Sources.streamsFromSeason", {
           attributes: { title: season.title, infoHash: season.infoHash },
         }),
-        Effect.catchAllCause(() => Effect.succeed(Stream.empty)),
+        Effect.catchCause(() => Effect.succeed(Stream.empty)),
         Stream.unwrap,
       )
 
@@ -219,30 +211,33 @@ export class Sources extends Effect.Service<Sources>()("stremio/Sources", {
       [PrimaryKey.symbol]() {
         return streamRequestId(this.request)
       }
-      get [Schema.symbolWithResult]() {
-        return {
-          success: SourceStream.Array,
-          failure: Schema.String,
-        }
-      }
+      // get [Schema.symbolWithResult]() {
+      //   return {
+      //     success: SourceStream.Array,
+      //     failure: Schema.String,
+      //   }
+      // }
     }
-    const listCache = yield* PersistedCache.make({
-      storeId: "Sources.listCache",
+    const listCache = yield* Cache.makeWith({
+      // storeId: "Sources.listCache",
       lookup: (request: ListRequest) =>
         listUncached(request.request, request.baseUrl),
-      timeToLive: (_, exit) => {
+      timeToLive: (exit) => {
         if (exit._tag === "Failure") return "1 minute"
         return exit.value.length > 5 ? "3 days" : "6 hours"
       },
-      inMemoryCapacity: 16,
+      capacity: 1024,
     })
     const list = (request: StreamRequest, baseUrl: URL) =>
-      listCache.get(new ListRequest({ request, baseUrl }))
+      Cache.get(listCache, new ListRequest({ request, baseUrl }))
 
     return { list, register, registerEmbellisher } as const
   }),
-  dependencies: [Cinemeta.Default, PersistenceLive, TorrentMeta.Default],
-}) {}
+}) {
+  static layer = Layer.effect(this)(this.make).pipe(
+    Layer.provide([TorrentMeta.layer, Cinemeta.layer]),
+  )
+}
 
 // domain
 

@@ -1,23 +1,15 @@
-import { PersistedCache } from "@effect/experimental"
-import { HttpClient, HttpClientRequest } from "@effect/platform"
+import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import {
-  Data,
-  Effect,
-  Hash,
-  Layer,
-  Match,
-  pipe,
-  PrimaryKey,
-  Schedule,
-  Schema,
-  Stream,
-} from "effect"
+import { Effect, Layer, pipe, Schedule } from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { PersistenceLive } from "../Persistence.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
+import { Schema } from "effect/schema"
+import { Stream } from "effect/stream"
+import { Match } from "effect/match"
+import { Cache } from "effect/caching"
+import { Data } from "effect/data"
 
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -59,19 +51,19 @@ export const Source1337xLive = Effect.gen(function* () {
     query: string
     category: "Movies" | "TV"
   }> {
-    [PrimaryKey.symbol]() {
-      return `${this.category}/${this.query}`
-    }
-    get [Schema.symbolWithResult]() {
-      return {
-        success: SearchResult.Array,
-        failure: Schema.Never,
-      }
-    }
+    // [PrimaryKey.symbol]() {
+    //   return `${this.category}/${this.query}`
+    // }
+    // get [Schema.symbolWithResult]() {
+    //   return {
+    //     success: SearchResult.Array,
+    //     failure: Schema.Never,
+    //   }
+    // }
   }
 
-  const searchCache = yield* PersistedCache.make({
-    storeId: "Source.1337x.search",
+  const searchCache = yield* Cache.makeWith({
+    // storeId: "Source.1337x.search",
     lookup: (request: SearchRequest) =>
       pipe(
         client.get(
@@ -85,27 +77,30 @@ export const Source1337xLive = Effect.gen(function* () {
           attributes: { ...request },
         }),
       ),
-    timeToLive: (_, exit) => {
+    timeToLive: (exit) => {
       if (exit._tag === "Failure") return "1 minute"
       return exit.value.length > 5 ? "3 days" : "3 hours"
     },
-    inMemoryCapacity: 8,
+    capacity: 1024,
   })
 
   const searchStream = (request: TitleVideoQuery) =>
     pipe(
-      searchCache.get(
+      Cache.get(
+        searchCache,
         new SearchRequest({
           query: request.asQuery,
           category: request._tag === "MovieQuery" ? "Movies" : "TV",
         }),
       ),
-      Effect.map(Stream.fromIterable),
-      Stream.unwrap,
+      Stream.fromIterableEffect,
       Stream.take(30),
       Stream.flatMap(
         (result) =>
-          magnetLink.get(new MagnetLinkRequest({ url: result.url })).pipe(
+          Cache.get(
+            magnetLink,
+            new MagnetLinkRequest({ url: result.url }),
+          ).pipe(
             Effect.map((magnet) =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
@@ -127,25 +122,26 @@ export const Source1337xLive = Effect.gen(function* () {
                     sizeDisplay: result.size,
                   }),
             ),
-            Stream.catchAllCause(() => Stream.empty),
+            Stream.fromEffect,
+            Stream.catchCause(() => Stream.empty),
           ),
         { concurrency: "unbounded" },
       ),
     )
 
   class MagnetLinkRequest extends Data.Class<{ url: string }> {
-    [PrimaryKey.symbol]() {
-      return Hash.hash(this).toString()
-    }
-    get [Schema.symbolWithResult]() {
-      return {
-        success: Schema.String,
-        failure: Schema.Never,
-      }
-    }
+    // [PrimaryKey.symbol]() {
+    //   return Hash.hash(this).toString()
+    // }
+    // get [Schema.symbolWithResult]() {
+    //   return {
+    //     success: Schema.String,
+    //     failure: Schema.Never,
+    //   }
+    // }
   }
-  const magnetLink = yield* PersistedCache.make({
-    storeId: "Source.1337x.magnetLink",
+  const magnetLink = yield* Cache.makeWith({
+    // storeId: "Source.1337x.magnetLink",
     lookup: ({ url }: MagnetLinkRequest) =>
       client.get(url).pipe(
         Effect.flatMap((r) => r.text),
@@ -158,9 +154,8 @@ export const Source1337xLive = Effect.gen(function* () {
         }),
         Effect.orDie,
       ),
-    timeToLive: (_, exit) =>
-      exit._tag === "Success" ? "3 weeks" : "5 minutes",
-    inMemoryCapacity: 8,
+    timeToLive: (exit) => (exit._tag === "Success" ? "3 weeks" : "5 minutes"),
+    capacity: 512,
   })
 
   const sources = yield* Sources
@@ -173,14 +168,15 @@ export const Source1337xLive = Effect.gen(function* () {
         "SeasonQuery",
         (query) =>
           searchStream(query).pipe(
-            Stream.catchAllCause((cause) =>
+            Stream.catchCause((cause) =>
               Effect.logDebug(cause).pipe(
                 Effect.annotateLogs({
                   service: "Source.1337x",
                   method: "list",
                   query,
                 }),
-                Stream.drain,
+                Stream.fromEffect,
+                Stream.flatMap(() => Stream.empty),
               ),
             ),
             Stream.withSpan("Source.1337x.list", { attributes: { query } }),
@@ -189,7 +185,7 @@ export const Source1337xLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
+}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
 
 class SearchResult extends Schema.Class<SearchResult>("SearchResult")({
   url: Schema.String,

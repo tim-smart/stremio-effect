@@ -1,12 +1,14 @@
-import { PersistedCache } from "@effect/experimental"
-import { HttpClient, HttpClientRequest } from "@effect/platform"
+import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import { Array, Effect, Layer, Match, pipe, Schedule, Stream } from "effect"
+import { Effect, Layer, pipe, Schedule } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { PersistenceLive } from "../Persistence.js"
+import { Cache } from "effect/caching"
+import { Array } from "effect/collections"
+import { Match } from "effect/match"
+import { Stream } from "effect/stream"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -18,8 +20,8 @@ export const SourceNyaaLive = Effect.gen(function* () {
     }),
   )
 
-  const searchCache = yield* PersistedCache.make({
-    storeId: "Source.Nyaa.search",
+  const searchCache = yield* Cache.makeWith({
+    // storeId: "Source.Nyaa.search",
     lookup: (request: AbsoluteSeriesQuery) =>
       pipe(
         client.get("/", {
@@ -32,7 +34,6 @@ export const SourceNyaaLive = Effect.gen(function* () {
           },
         }),
         Effect.flatMap((r) => r.text),
-        Effect.scoped,
         Effect.map((html) =>
           pipe(
             parseResults(html),
@@ -54,8 +55,8 @@ export const SourceNyaaLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
       ),
-    timeToLive: (req, exit) => req.timeToLive(exit),
-    inMemoryCapacity: 8,
+    timeToLive: (exit, req) => req.timeToLive(exit),
+    capacity: 128,
   })
 
   const parseResults = (html: string) => {
@@ -86,8 +87,8 @@ export const SourceNyaaLive = Effect.gen(function* () {
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
       Match.tag("AbsoluteSeriesQuery", (query) =>
-        searchCache.get(query).pipe(
-          Effect.tapErrorCause(Effect.logDebug),
+        Cache.get(searchCache, query).pipe(
+          Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Nyaa.Series", {
             attributes: { query },
@@ -99,4 +100,4 @@ export const SourceNyaaLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
+}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))

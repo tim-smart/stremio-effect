@@ -1,5 +1,6 @@
-import { Data, Exit, Option, Predicate, PrimaryKey, Schema } from "effect"
-import { SourceStream } from "./SourceStream.js"
+import { Exit } from "effect"
+import { Data, Option, Predicate } from "effect/data"
+import { PrimaryKey } from "effect/interfaces"
 
 export class SeriesQuery extends Data.TaggedClass("SeriesQuery")<{
   readonly title: string
@@ -38,12 +39,12 @@ export class AbsoluteSeriesQuery extends Data.TaggedClass(
   [PrimaryKey.symbol]() {
     return `${this.title}/${this.number}`
   }
-  get [Schema.symbolWithResult]() {
-    return {
-      success: SourceStream.Array,
-      failure: Schema.Never,
-    }
-  }
+  // get [Schema.symbolWithResult]() {
+  //   return {
+  //     success: SourceStream.Array,
+  //     failure: Schema.Never,
+  //   }
+  // }
 }
 
 export class ImdbSeriesQuery extends Data.TaggedClass("ImdbSeriesQuery")<{

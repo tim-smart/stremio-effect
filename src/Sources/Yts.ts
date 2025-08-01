@@ -1,24 +1,18 @@
-import { PersistedCache } from "@effect/experimental"
 import {
   HttpClient,
   HttpClientRequest,
   HttpClientResponse,
-} from "@effect/platform"
-import * as S from "effect/Schema"
-import {
-  Effect,
-  Layer,
-  Match,
-  pipe,
-  PrimaryKey,
-  Schedule,
-  Stream,
-} from "effect"
+} from "effect/unstable/http"
+import { Effect, Layer, pipe, Schedule } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash } from "../Utils.js"
-import { PersistenceLive } from "../Persistence.js"
+import { Schema as S } from "effect/schema"
+import { Data } from "effect/data"
+import { Cache } from "effect/caching"
+import { Match } from "effect/match"
+import { Stream } from "effect/stream"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -33,43 +27,35 @@ export const SourceYtsLive = Effect.gen(function* () {
     }),
   )
 
-  class DetailsRequest extends S.TaggedRequest<DetailsRequest>()(
-    "DetailsRequest",
-    {
-      failure: S.Never,
-      success: Movie,
-      payload: { imdbId: S.String },
-    },
-  ) {
-    [PrimaryKey.symbol]() {
-      return this.imdbId
-    }
+  class DetailsRequest extends Data.Class<{ imdbId: string }> {
+    // [PrimaryKey.symbol]() {
+    //   return this.imdbId
+    // }
   }
 
-  const details = yield* PersistedCache.make({
-    storeId: "Source.Yts.details",
+  const details = yield* Cache.makeWith({
+    // storeId: "Source.Yts.details",
     lookup: ({ imdbId }: DetailsRequest) =>
       pipe(
         client.get("/movie_details.json", { urlParams: { imdb_id: imdbId } }),
         Effect.flatMap(MovieDetails.decodeResponse),
-        Effect.scoped,
         Effect.orDie,
         Effect.map((_) => _.data.movie),
         Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
       ),
-    timeToLive: (_, exit) => {
+    timeToLive: (exit) => {
       if (exit._tag === "Failure") return "5 minutes"
       return "3 days"
     },
-    inMemoryCapacity: 8,
+    capacity: 128,
   })
 
   yield* sources.register({
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", ({ imdbId }) =>
-        details.get(new DetailsRequest({ imdbId })).pipe(
+        Cache.get(details, new DetailsRequest({ imdbId })).pipe(
           Effect.map((_) => _.streams),
-          Effect.tapErrorCause(Effect.logDebug),
+          Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Yts.Imdb", { attributes: { imdbId } }),
           Effect.annotateLogs({
@@ -83,18 +69,18 @@ export const SourceYtsLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.scopedDiscard, Layer.provide([Sources.Default, PersistenceLive]))
+}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
 
 // schema
 
-export const Quality = S.Literal(
+export const Quality = S.Literals([
   "480p",
   "720p",
   "1080p",
   "1080p.x265",
   "2160p",
   "3D",
-)
+])
 export type Quality = S.Schema.Type<typeof Quality>
 
 export class Torrent extends S.Class<Torrent>("Torrent")({
@@ -116,14 +102,14 @@ export class Movie extends S.Class<Movie>("Movie")({
   id: S.Number,
   url: S.String,
   imdb_code: S.String,
-  title: S.Union(S.Null, S.String),
-  title_english: S.Union(S.Null, S.String),
+  title: S.NullOr(S.String),
+  title_english: S.NullOr(S.String),
   title_long: S.String,
-  slug: S.Union(S.Null, S.String),
+  slug: S.NullOr(S.String),
   year: S.Number,
   rating: S.Number,
   runtime: S.Number,
-  torrents: S.optional(S.Union(S.Array(Torrent), S.Null)),
+  torrents: S.optional(S.NullOr(S.Array(Torrent))),
 }) {
   get streams(): SourceStream[] {
     if (!this.torrents) {

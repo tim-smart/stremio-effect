@@ -1,18 +1,19 @@
-import * as Otlp from "@effect/opentelemetry/Otlp"
-import * as OtlpTracer from "@effect/opentelemetry/OtlpTracer"
+import { Otlp, OtlpTracer } from "effect/unstable/tracing"
 import { NodeHttpClient } from "@effect/platform-node"
-import { Config, Effect, Layer, Logger, Redacted } from "effect"
+import { Effect, Layer } from "effect"
+import { Config } from "effect/config"
+import { Redacted } from "effect/data"
 
-export const TracingLive = Layer.unwrapEffect(
+export const TracingLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const apiKey = yield* Config.option(Config.redacted("HONEYCOMB_API_KEY"))
+    const apiKey = yield* Config.option(Config.Redacted("HONEYCOMB_API_KEY"))
     const dataset = yield* Config.withDefault(
-      Config.string("HONEYCOMB_DATASET"),
+      Config.String("HONEYCOMB_DATASET"),
       "stremio-effect",
     )
     if (apiKey._tag === "None") {
       const endpoint = yield* Config.option(
-        Config.string("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        Config.String("OTEL_EXPORTER_OTLP_ENDPOINT"),
       )
       if (endpoint._tag === "None") {
         return Layer.empty
@@ -36,7 +37,6 @@ export const TracingLive = Layer.unwrapEffect(
       },
       baseUrl: "https://api.honeycomb.io",
       headers,
-      replaceLogger: Logger.tracerLogger,
     })
   }),
 ).pipe(Layer.provide(NodeHttpClient.layerUndici))

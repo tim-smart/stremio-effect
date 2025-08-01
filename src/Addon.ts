@@ -1,7 +1,7 @@
 import * as Stremio from "./Stremio.js"
 import { Layer } from "effect"
+import { HttpRouter } from "effect/unstable/http"
 import { AllSourcesDebrid } from "./Sources/All.js"
-import { HttpLayerRouter } from "@effect/platform"
 
 export const AddonLive = Stremio.StremioManifest.addon({
   id: "co.timsmart.stremio.sources",
@@ -11,4 +11,4 @@ export const AddonLive = Stremio.StremioManifest.addon({
   catalogs: [],
   resources: ["stream"],
   types: ["movie", "tv", "series"],
-}).pipe(Layer.provide(AllSourcesDebrid), HttpLayerRouter.serve)
+}).pipe(Layer.provide(AllSourcesDebrid), HttpRouter.serve)

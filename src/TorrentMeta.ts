@@ -1,17 +1,18 @@
-import { HttpClient, HttpClientRequest } from "@effect/platform"
-import { Data, Effect, Hash, Option, pipe, PrimaryKey, Schema } from "effect"
 import {
   infoHashFromMagnet,
   magnetFromHash,
   qualityFromTitle,
 } from "./Utils.js"
-import { PersistedCache } from "@effect/experimental"
-import { PersistenceLive } from "./Persistence.js"
 import { SourceStreamWithFile } from "./Domain/SourceStream.js"
 import ParseTorrent from "parse-torrent"
+import { Effect, Layer, pipe, ServiceMap } from "effect"
+import { HttpClient, HttpClientRequest } from "effect/unstable/http"
+import { Data } from "effect/data"
+import { Cache } from "effect/caching"
+import { Schema } from "effect/schema"
 
-export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
-  scoped: Effect.gen(function* () {
+export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
+  make: Effect.gen(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://itorrents.org/torrent"),
@@ -22,59 +23,55 @@ export class TorrentMeta extends Effect.Service<TorrentMeta>()("TorrentMeta", {
     class HashRequest extends Data.Class<{
       readonly infoHash: string
     }> {
-      [PrimaryKey.symbol]() {
-        return String(Hash.string(this.infoHash))
-      }
-      get [Schema.symbolWithResult]() {
-        return {
-          success: TorrentMetadata,
-          failure: Schema.Never,
-        }
-      }
+      // [PrimaryKey.symbol]() {
+      //   return String(Hash.string(this.infoHash))
+      // }
+      // get [Schema.symbolWithResult]() {
+      //   return {
+      //     success: TorrentMetadata,
+      //     failure: Schema.Never,
+      //   }
+      // }
     }
 
-    const fromHashCache = yield* PersistedCache.make({
-      storeId: "TorrentMeta.fromHash",
+    const fromHashCache = yield* Cache.makeWith({
+      // storeId: "TorrentMeta.fromHash",
       lookup: ({ infoHash }: HashRequest) =>
-        pipe(
-          client.get(`/${infoHash}.torrent`),
+        client.get(`/${infoHash}.torrent`).pipe(
           Effect.flatMap((_) => _.arrayBuffer),
-          Effect.scoped,
           Effect.flatMap((buffer) =>
             Effect.promise(() => ParseTorrent(new Uint8Array(buffer)) as any),
           ),
-          Effect.flatMap(Schema.decodeUnknown(TorrentMetadata)),
+          Effect.flatMap(Schema.decodeUnknownEffect(TorrentMetadata)),
           Effect.orDie,
         ),
-      timeToLive: (_, exit) =>
-        exit._tag === "Failure" ? "1 minute" : "3 days",
-      inMemoryCapacity: 8,
+      timeToLive: (exit) => (exit._tag === "Failure" ? "1 minute" : "3 days"),
+      capacity: 512,
     })
 
     const parse = (buffer: ArrayBuffer) =>
       Effect.promise(() => ParseTorrent(new Uint8Array(buffer)) as any).pipe(
-        Effect.flatMap(Schema.decodeUnknown(TorrentMetadata)),
+        Effect.flatMap(Schema.decodeUnknownEffect(TorrentMetadata)),
         Effect.orDie,
       )
 
     const fromMagnet = (magnet: string) =>
-      pipe(
-        fromHash(infoHashFromMagnet(magnet)),
+      fromHash(infoHashFromMagnet(magnet)).pipe(
         Effect.withSpan("TorrentMeta.fromMagnet", { attributes: { magnet } }),
       )
 
     const fromHash = (hash: string) =>
       pipe(
-        fromHashCache.get(new HashRequest({ infoHash: hash })),
+        Cache.get(fromHashCache, new HashRequest({ infoHash: hash })),
         Effect.timeout(5000),
-        Effect.withUnhandledErrorLogLevel(Option.none()),
         Effect.withSpan("TorrentMeta.fromHash", { attributes: { hash } }),
       )
 
     return { fromMagnet, fromHash, parse } as const
   }),
-  dependencies: [PersistenceLive],
-}) {}
+}) {
+  static layer = Layer.effect(this)(this.make)
+}
 
 export class TorrentFile extends Schema.Class<TorrentFile>("TorrentFile")({
   name: Schema.String,
