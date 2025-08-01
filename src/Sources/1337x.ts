@@ -70,7 +70,6 @@ export const Source1337xLive = Effect.gen(function* () {
           `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
         ),
         Effect.flatMap((r) => r.text),
-        Effect.scoped,
         Effect.map(parseResults),
         Effect.orDie,
         Effect.withSpan("Source.1337x.search", {
@@ -122,6 +121,9 @@ export const Source1337xLive = Effect.gen(function* () {
                     sizeDisplay: result.size,
                   }),
             ),
+            Effect.withSpan("Source.1337x.magnetLink", {
+              attributes: { url: result.url, title: result.title },
+            }),
             Stream.fromEffect,
             Stream.catchCause(() => Stream.empty),
           ),
@@ -160,6 +162,7 @@ export const Source1337xLive = Effect.gen(function* () {
 
   const sources = yield* Sources
   yield* sources.register({
+    name: "1337x",
     list: Match.type<VideoQuery>().pipe(
       Match.tag(
         "AbsoluteSeriesQuery",

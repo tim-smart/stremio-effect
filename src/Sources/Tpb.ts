@@ -77,6 +77,7 @@ export const SourceTpbLive = Effect.gen(function* () {
   })
 
   yield* sources.register({
+    name: "Tpb",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImdbSeasonQuery", (query) => {
         if (Option.isNone(query.titleMatcher)) return Stream.empty

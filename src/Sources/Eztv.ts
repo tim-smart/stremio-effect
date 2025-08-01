@@ -92,6 +92,7 @@ export const SourceEztvLive = Effect.gen(function* () {
     )
 
   yield* sources.register({
+    name: "Eztv",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImdbSeasonQuery", ({ imdbId, season }) =>
         stream(imdbId).pipe(

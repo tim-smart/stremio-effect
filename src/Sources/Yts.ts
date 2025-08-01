@@ -51,6 +51,7 @@ export const SourceYtsLive = Effect.gen(function* () {
   })
 
   yield* sources.register({
+    name: "YTS",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", ({ imdbId }) =>
         Cache.get(details, new DetailsRequest({ imdbId })).pipe(

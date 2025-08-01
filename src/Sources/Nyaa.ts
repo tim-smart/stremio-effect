@@ -85,6 +85,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
 
   const sources = yield* Sources
   yield* sources.register({
+    name: "Nyaa",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("AbsoluteSeriesQuery", (query) =>
         Cache.get(searchCache, query).pipe(

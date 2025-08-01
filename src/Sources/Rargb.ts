@@ -156,6 +156,7 @@ export const SourceRargbLive = Effect.gen(function* () {
 
   const sources = yield* Sources
   yield* sources.register({
+    name: "Rarbg",
     list: Match.type<VideoQuery>().pipe(
       Match.tag(
         "AbsoluteSeriesQuery",

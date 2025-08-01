@@ -65,8 +65,7 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
                 method: "queriesFromRequest",
                 kind: "Move",
               }),
-              Stream.fromEffect,
-              Stream.flatMap(Stream.fromIterable),
+              Stream.fromIterableEffect,
             ),
           ),
         ),
@@ -242,6 +241,7 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
 // domain
 
 export interface Source {
+  readonly name: string
   readonly list: (
     query: VideoQuery,
   ) => Stream.Stream<SourceStream | SourceStreamWithFile | SourceSeason>
