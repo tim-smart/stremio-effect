@@ -1,6 +1,6 @@
 import * as Stremio from "./Stremio.js"
 import { Layer } from "effect"
-import { HttpRouter } from "effect/unstable/http"
+import { HttpMiddleware, HttpRouter } from "effect/unstable/http"
 import { AllSourcesDebrid } from "./Sources/All.js"
 
 export const AddonLive = Stremio.StremioManifest.addon({
@@ -11,4 +11,8 @@ export const AddonLive = Stremio.StremioManifest.addon({
   catalogs: [],
   resources: ["stream"],
   types: ["movie", "tv", "series"],
-}).pipe(Layer.provide(AllSourcesDebrid), HttpRouter.serve)
+}).pipe(
+  Layer.provide(AllSourcesDebrid),
+  HttpRouter.serve,
+  Layer.provide(HttpMiddleware.layerTracerDisabledForUrls(["/health"])),
+)
