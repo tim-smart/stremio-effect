@@ -161,17 +161,20 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
         ),
         // only keep unique results
         Stream.chunks,
-        Stream.mapAccum(new Set<string>(), (hashes, chunk) => {
-          const filtered = chunk.filter(({ result }) => {
-            const hash = result.infoHash.toLowerCase()
-            if (hashes.has(hash)) {
-              return false
-            }
-            hashes.add(hash)
-            return true
-          })
-          return [hashes, filtered]
-        }),
+        Stream.mapAccum(
+          () => new Set<string>(),
+          (hashes, chunk) => {
+            const filtered = chunk.filter(({ result }) => {
+              const hash = result.infoHash.toLowerCase()
+              if (hashes.has(hash)) {
+                return false
+              }
+              hashes.add(hash)
+              return true
+            })
+            return [hashes, filtered]
+          },
+        ),
         // group by quality and return
         Stream.map((_) => _.result),
         Stream.scan(QualityGroup.empty(), QualityGroup.unsafeAdd),
