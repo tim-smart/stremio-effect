@@ -63,7 +63,7 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
               Effect.annotateLogs({
                 service: "Sources",
                 method: "queriesFromRequest",
-                kind: "Move",
+                kind: "Movie",
               }),
               Stream.fromIterableEffect,
             ),
@@ -94,9 +94,12 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
       Tv: ({ imdbId }) => Stream.make(new ImdbTvQuery({ imdbId })),
     })
 
-    const listUncached = (request: StreamRequest, baseUrl: URL) =>
+    const listUncached = (request: StreamRequest, baseUrl: URL) => {
+      const embellisher =
+        embellishers.size > 0 ? Iterable.unsafeHead(embellishers) : undefined
+
       // map request to queries
-      queriesFromRequest(request).pipe(
+      return queriesFromRequest(request).pipe(
         Stream.bindTo("query"),
         Stream.let("nonSeasonQuery", ({ query }) => nonSeasonQuery(query)),
         // for each soucre run the queries
@@ -133,20 +136,17 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
           }),
         ),
         // embellish the results
-        embellishers.size === 0
-          ? Stream.bind("result", ({ sourceResult }) =>
-              sourceResult._tag === "SourceStream"
-                ? Stream.make(sourceResult)
-                : Stream.empty,
-            )
-          : Stream.bind(
+        embellisher
+          ? Stream.bindEffect(
               "result",
               ({ sourceResult }) =>
-                Iterable.unsafeHead(embellishers).transform(
-                  sourceResult,
-                  baseUrl,
-                ),
+                embellisher.transform(sourceResult, baseUrl),
               { concurrency: "unbounded" },
+            )
+          : Stream.filter((item) =>
+              item.sourceResult._tag === "SourceStream"
+                ? { ...item, result: item.sourceResult }
+                : Filter.fail(null),
             ),
         // filter out non matches
         Stream.filter(
@@ -185,6 +185,7 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
         ),
         Effect.map(Array.sort(SourceStream.Order)),
       )
+    }
 
     const streamsFromSeason = (season: SourceSeason) =>
       pipe(
@@ -251,5 +252,5 @@ export interface Embellisher {
   readonly transform: (
     stream: SourceStream | SourceStreamWithFile,
     baseUrl: URL,
-  ) => Stream.Stream<SourceStream | SourceStreamWithFile>
+  ) => Effect.Effect<SourceStream | SourceStreamWithFile>
 }

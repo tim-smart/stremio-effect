@@ -85,8 +85,8 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
       Cache.get(lookupSeriesCache, new LookupSeries({ imdbID }))
 
     const tvdb = yield* Tvdb
-    const lookupEpisode = (imdbID: string, season: number, episode: number) =>
-      Effect.gen(function* () {
+    const lookupEpisode = Effect.fnUntraced(
+      function* (imdbID: string, season: number, episode: number) {
         const series = yield* lookupSeries(imdbID)
         if (series.videos[0]?.episode === undefined) {
           return [
@@ -127,11 +127,12 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
             info,
           }),
         ]
-      }).pipe(
-        Effect.withSpan("Cinemeta.lookupEpisode", {
+      },
+      (effect, imdbID, season, episode) =>
+        Effect.withSpan(effect, "Cinemeta.lookupEpisode", {
           attributes: { imdbID, season, episode },
         }),
-      )
+    )
 
     return { lookupMovie, lookupSeries, lookupEpisode } as const
   }),

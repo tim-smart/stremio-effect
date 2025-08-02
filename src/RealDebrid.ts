@@ -16,7 +16,6 @@ import { Schema } from "effect/schema"
 import { Array } from "effect/collections"
 import { Cache } from "effect/caching"
 import { Option, Order } from "effect/data"
-import { Stream } from "effect/stream"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
@@ -164,7 +163,6 @@ export const RealDebridLayer = Effect.gen(function* () {
         Effect.withSpan("RealDebrid.transform", {
           attributes: { infoHash: stream.infoHash },
         }),
-        Stream.fromEffect,
       ),
   })
 

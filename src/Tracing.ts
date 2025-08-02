@@ -1,4 +1,4 @@
-import { Otlp, OtlpTracer } from "effect/unstable/tracing"
+import { OtlpTracer } from "effect/unstable/tracing"
 import { NodeHttpClient } from "@effect/platform-node"
 import { Effect, Layer } from "effect"
 import { Config } from "effect/config"
@@ -31,11 +31,11 @@ export const TracingLayer = Layer.unwrap(
       "X-Honeycomb-Dataset": dataset,
     }
 
-    return Otlp.layer({
+    return OtlpTracer.layer({
       resource: {
         serviceName: dataset,
       },
-      baseUrl: "https://api.honeycomb.io",
+      url: "https://api.honeycomb.io/v1/traces",
       headers,
     })
   }),

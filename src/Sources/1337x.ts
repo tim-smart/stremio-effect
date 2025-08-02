@@ -147,14 +147,12 @@ export const Source1337xLive = Effect.gen(function* () {
     lookup: ({ url }: MagnetLinkRequest) =>
       client.get(url).pipe(
         Effect.flatMap((r) => r.text),
-        Effect.scoped,
         Effect.flatMap((html) => {
           const $ = Cheerio.load(html)
           return Effect.fromNullable(
             $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
           )
         }),
-        Effect.orDie,
       ),
     timeToLive: (exit) => (exit._tag === "Success" ? "3 weeks" : "5 minutes"),
     capacity: 512,
