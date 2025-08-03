@@ -9,10 +9,9 @@ import { Sources } from "./Sources.js"
 import { configProviderNested } from "./Utils.js"
 import { ExtractTag } from "effect/types/Types"
 import { Cinemeta } from "./Cinemeta.js"
-import { Data, Option, Redacted, Struct } from "effect/data"
+import { Data, Option, Redacted } from "effect/data"
 import { Config, ConfigProvider } from "effect/config"
 import { Match } from "effect/match"
-import { Schema } from "effect/schema"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest
@@ -36,14 +35,7 @@ export type StreamRequest = Data.TaggedEnum<{
 export declare namespace StreamRequest {
   export interface Series extends ExtractTag<StreamRequest, "Series"> {}
 }
-export const StreamRequest = Struct.pick(Data.taggedEnum<StreamRequest>(), [
-  "Series",
-  "Movie",
-  "Tv",
-  "Channel",
-  "$is",
-  "$match",
-])
+export const StreamRequest = Data.taggedEnum<StreamRequest>()
 export const streamRequestId = StreamRequest.$match({
   Channel: ({ id }) => `Channel:${id}`,
   Movie: ({ imdbId }) => `Movie:${imdbId}`,
