@@ -14,7 +14,6 @@ import {
   HttpClientResponse,
 } from "effect/unstable/http"
 import { Data, Option } from "effect/data"
-import { PrimaryKey } from "effect/interfaces"
 import { Schema as S } from "effect/schema"
 import { Array } from "effect/collections"
 
@@ -32,45 +31,21 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
       }),
     )
 
-    class LookupMovie extends Data.Class<{ imdbId: string }> {
-      [PrimaryKey.symbol]() {
-        return this.imdbId
-      }
-      // get [S.symbolWithResult]() {
-      //   return {
-      //     success: MovieMeta,
-      //     failure: Schema.Never,
-      //   }
-      // }
-    }
-
     const lookupMovieCache = yield* Cache.makeWith({
-      lookup: (req: LookupMovie) =>
-        client.get(`/movie/${req.imdbId}.json`).pipe(
+      lookup: (imdbId: string) =>
+        client.get(`/movie/${imdbId}.json`).pipe(
           Effect.flatMap(Movie.decodeResponse),
           Effect.map((_) => _.meta),
           Effect.orDie,
-          Effect.withSpan("Cinemeta.lookupMovie", { attributes: { ...req } }),
+          Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbId } }),
         ),
       capacity: 1024,
       timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
     })
-    const lookupMovie = (imdbID: string) =>
-      Cache.get(lookupMovieCache, new LookupMovie({ imdbId: imdbID }))
+    const lookupMovie = (imdbID: string) => Cache.get(lookupMovieCache, imdbID)
 
-    class LookupSeries extends Data.Class<{ imdbID: string }> {
-      [PrimaryKey.symbol]() {
-        return this.imdbID
-      }
-      // get [S.symbolWithResult]() {
-      //   return {
-      //     success: SeriesMeta,
-      //     failure: Schema.Never,
-      //   }
-      // }
-    }
     const lookupSeriesCache = yield* Cache.makeWith({
-      lookup: ({ imdbID }: LookupSeries) =>
+      lookup: (imdbID: string) =>
         client.get(`/series/${imdbID}.json`).pipe(
           Effect.flatMap(Series.decodeResponse),
           Effect.map((_) => _.meta),
@@ -82,7 +57,7 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
       capacity: 1024,
     })
     const lookupSeries = (imdbID: string) =>
-      Cache.get(lookupSeriesCache, new LookupSeries({ imdbID }))
+      Cache.get(lookupSeriesCache, imdbID)
 
     const tvdb = yield* Tvdb
     const lookupEpisode = Effect.fnUntraced(

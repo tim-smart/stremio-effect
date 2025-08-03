@@ -7,7 +7,6 @@ import { SourceStreamWithFile } from "./Domain/SourceStream.js"
 import ParseTorrent from "parse-torrent"
 import { Effect, Layer, pipe, ServiceMap } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { Data } from "effect/data"
 import { Cache } from "effect/caching"
 import { Schema } from "effect/schema"
 
@@ -20,23 +19,9 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
       HttpClient.filterStatusOk,
     )
 
-    class HashRequest extends Data.Class<{
-      readonly infoHash: string
-    }> {
-      // [PrimaryKey.symbol]() {
-      //   return String(Hash.string(this.infoHash))
-      // }
-      // get [Schema.symbolWithResult]() {
-      //   return {
-      //     success: TorrentMetadata,
-      //     failure: Schema.Never,
-      //   }
-      // }
-    }
-
     const fromHashCache = yield* Cache.makeWith({
       // storeId: "TorrentMeta.fromHash",
-      lookup: ({ infoHash }: HashRequest) =>
+      lookup: (infoHash: string) =>
         client.get(`/${infoHash}.torrent`).pipe(
           Effect.flatMap((_) => _.arrayBuffer),
           Effect.flatMap((buffer) =>
@@ -62,7 +47,7 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
 
     const fromHash = (hash: string) =>
       pipe(
-        Cache.get(fromHashCache, new HashRequest({ infoHash: hash })),
+        Cache.get(fromHashCache, hash),
         Effect.timeout(5000),
         Effect.withSpan("TorrentMeta.fromHash", { attributes: { hash } }),
       )

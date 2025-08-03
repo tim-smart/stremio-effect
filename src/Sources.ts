@@ -193,12 +193,12 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
     const streamsFromSeason = (season: SourceSeason) =>
       pipe(
         torrentMeta.fromMagnet(season.magnetUri),
-        Effect.map((result) => Stream.fromArray(result.streams(season))),
+        Effect.map((result) => result.streams(season)),
         Effect.withSpan("Sources.streamsFromSeason", {
           attributes: { title: season.title, infoHash: season.infoHash },
         }),
-        Effect.catchCause(() => Effect.succeed(Stream.empty)),
-        Stream.unwrap,
+        Stream.fromArrayEffect,
+        Stream.ignoreCause,
       )
 
     class ListRequest extends Data.Class<{

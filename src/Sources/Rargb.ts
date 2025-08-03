@@ -90,7 +90,7 @@ export const SourceRargbLive = Effect.gen(function* () {
           category: request._tag === "MovieQuery" ? "movies" : "series",
         }),
       ),
-      Stream.fromIterableEffect,
+      Stream.fromArrayEffect,
       Stream.take(30),
       Stream.flatMap(
         (result) =>
@@ -120,7 +120,7 @@ export const SourceRargbLive = Effect.gen(function* () {
                   }),
             ),
             Stream.fromEffect,
-            Stream.catchCause(() => Stream.empty),
+            Stream.ignoreCause,
           ),
         { concurrency: "unbounded" },
       ),

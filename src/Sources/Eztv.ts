@@ -69,26 +69,24 @@ export const SourceEztvLive = Effect.gen(function* () {
           ),
         ]),
       ),
-    ).pipe(Stream.catchCause(() => Stream.empty))
+    ).pipe(Stream.ignoreCause)
 
   const seasonSources = (torrent: Torrent) =>
     defaultClient.get(torrent.torrent_url).pipe(
       Effect.flatMap((res) => res.arrayBuffer),
       Effect.flatMap((buffer) => torrentMeta.parse(buffer)),
       Effect.map((meta) =>
-        Stream.fromIterable(
-          meta.streams({
-            source: "EZTV",
-            seeds: torrent.seeds,
-            peers: torrent.peers,
-          }),
-        ),
+        meta.streams({
+          source: "EZTV",
+          seeds: torrent.seeds,
+          peers: torrent.peers,
+        }),
       ),
-      Effect.catchCause(() => Effect.succeed(Stream.empty)),
       Effect.withSpan("Source.Eztv.seasonSources", {
         attributes: { title: torrent.title, hash: torrent.hash },
       }),
-      Stream.unwrap,
+      Stream.fromArrayEffect,
+      Stream.ignoreCause,
     )
 
   yield* sources.register({
