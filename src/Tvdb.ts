@@ -4,15 +4,17 @@ import {
   HttpClientResponse,
 } from "effect/unstable/http"
 import { Effect, Layer, Schedule, ServiceMap } from "effect"
-import { configProviderNested } from "./Utils.js"
-import { Config, ConfigProvider } from "effect/config"
+import { Config } from "effect/config"
 import { Cache } from "effect/caching"
 import { Schema as S, Schema } from "effect/schema"
 import { Redacted } from "effect/data"
 
 export class Tvdb extends ServiceMap.Key<Tvdb>()("Tvdb", {
   make: Effect.gen(function* () {
-    const apiKey = yield* Config.Redacted("apiKey")
+    const apiKey = yield* Config.schema(
+      Schema.Redacted(Schema.String),
+      "TVDB_API_KEY",
+    )
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4"),
@@ -61,12 +63,7 @@ export class Tvdb extends ServiceMap.Key<Tvdb>()("Tvdb", {
     const lookupEpisode = (id: number) => Cache.get(lookupEpisodeCache, id)
 
     return { lookupEpisode } as const
-  }).pipe(
-    Effect.provideService(
-      ConfigProvider.ConfigProvider,
-      configProviderNested("tvdb"),
-    ),
-  ),
+  }),
 }) {
   static layer = Layer.effect(this)(this.make)
 }

@@ -6,12 +6,12 @@ import {
   HttpServerResponse,
 } from "effect/unstable/http"
 import { Request } from "effect/batching"
-import { Config, ConfigProvider } from "effect/config"
+import { Config } from "effect/config"
 import { Effect, flow, Layer, pipe, Schedule } from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
-import { configProviderNested, magnetFromHash } from "./Utils.js"
+import { magnetFromHash } from "./Utils.js"
 import { Schema } from "effect/schema"
 import { Array } from "effect/collections"
 import { Cache } from "effect/caching"
@@ -19,7 +19,10 @@ import { Option, Order } from "effect/data"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
-  const apiKey = yield* Config.Redacted("apiKey")
+  const apiKey = yield* Config.schema(
+    Schema.Redacted(Schema.String),
+    "REAL_DEBRID_API_KEY",
+  )
 
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(
@@ -195,10 +198,6 @@ export const RealDebridLayer = Effect.gen(function* () {
     ),
   )
 }).pipe(
-  Effect.provideService(
-    ConfigProvider.ConfigProvider,
-    configProviderNested("realDebrid"),
-  ),
   Effect.annotateLogs({
     service: "RealDebrid",
   }),

@@ -6,12 +6,12 @@ import {
 } from "effect/unstable/http"
 import type * as Stremio from "stremio-addon-sdk"
 import { Sources } from "./Sources.js"
-import { configProviderNested } from "./Utils.js"
 import { ExtractTag } from "effect/types/Types"
 import { Cinemeta } from "./Cinemeta.js"
 import { Data, Option, Redacted } from "effect/data"
-import { Config, ConfigProvider } from "effect/config"
+import { Config } from "effect/config"
 import { Match } from "effect/match"
+import { Schema } from "effect/schema"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest
@@ -51,15 +51,13 @@ export class StremioRouter extends ServiceMap.Key<
   static layer = Layer.effect(StremioRouter)(
     Effect.gen(function* () {
       const router = yield* HttpRouter.HttpRouter
-      const token = yield* Config.Redacted("token")
+      const token = yield* Config.schema(
+        Schema.Redacted(Schema.String),
+        "ADDON_TOKEN",
+      )
 
       return router.prefixed(`/${Redacted.value(token)}`)
-    }).pipe(
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        configProviderNested("addon"),
-      ),
-    ),
+    }),
   )
 }
 
@@ -68,11 +66,13 @@ const ApiRoutes = Effect.gen(function* () {
   const sources = yield* Sources
   const manifest = yield* StremioManifest
   const cinemeta = yield* Cinemeta
-  const baseUrl = yield* Config.String("baseUrl").pipe(
-    Config.map((url) => new URL(url)),
-    Config.option,
+  const baseUrl = yield* Effect.option(
+    Config.schema(Schema.URL, "ADDON_BASE_URL").asEffect(),
   )
-  const token = yield* Config.Redacted("token")
+  const token = yield* Config.schema(
+    Schema.Redacted(Schema.String),
+    "ADDON_TOKEN",
+  )
   const scope = yield* Effect.scope
 
   yield* router.addAll([
@@ -145,10 +145,6 @@ const ApiRoutes = Effect.gen(function* () {
       Effect.forkIn(scope),
     )
 }).pipe(
-  Effect.provideService(
-    ConfigProvider.ConfigProvider,
-    configProviderNested("addon"),
-  ),
   Effect.annotateLogs({ service: "Stremio" }),
   Layer.effectDiscard,
   Layer.provide([Cinemeta.layer, Sources.layer, StremioRouter.layer]),
