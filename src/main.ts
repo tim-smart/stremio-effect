@@ -10,6 +10,7 @@ import { AddonLive } from "./Addon.js"
 import { Config } from "effect/config"
 import { MinimumLogLevel } from "effect/References"
 import { Schema } from "effect/schema"
+import { TracingLayer } from "./Tracing.js"
 
 // Fixes issues with timeouts
 Net.setDefaultAutoSelectFamily(false)
@@ -24,7 +25,7 @@ const MainLive = AddonLive.pipe(
     }),
     NodeHttpClient.layerUndici,
   ]),
-  // Layer.provide(TracingLayer),
+  Layer.provide(TracingLayer),
   Layer.provide(Layer.succeed(MinimumLogLevel)("All")),
 )
 
