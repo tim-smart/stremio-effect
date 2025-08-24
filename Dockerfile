@@ -1,4 +1,4 @@
-FROM node:alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN corepack pnpm install --frozen-lockfile
@@ -7,7 +7,7 @@ RUN corepack pnpm build
 RUN corepack pnpm prune --prod
 
 
-FROM node:alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
