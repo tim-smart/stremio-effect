@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@effect/platform-bun": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@484841b",
+    "@effect/platform-bun": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee",
     "@effect/platform-node": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b",
     "@types/parse-torrent": "^5.8.7",
     "@types/stremio-addon-sdk": "^1.6.12",
