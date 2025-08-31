@@ -27,7 +27,7 @@ export class Tvdb extends ServiceMap.Key<Tvdb>()("Tvdb", {
     )
 
     const apiToken = yield* HttpClientRequest.post("/login").pipe(
-      HttpClientRequest.bodyUnsafeJson({
+      HttpClientRequest.bodyJsonUnsafe({
         apikey: Redacted.value(apiKey),
       }),
       client.execute,

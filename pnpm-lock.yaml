@@ -9,11 +9,11 @@ importers:
   .:
     devDependencies:
       '@effect/platform-bun':
-        specifier: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee
-        version: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)
+        specifier: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@c9ea0bb
+        version: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)
       '@effect/platform-node':
-        specifier: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b
-        version: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)
+        specifier: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@c9ea0bb
+        version: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)
       '@types/parse-torrent':
         specifier: ^5.8.7
         version: 5.8.7
@@ -27,8 +27,8 @@ importers:
         specifier: 1.1.0
         version: 1.1.0
       effect:
-        specifier: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
-        version: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
+        specifier: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb
+        version: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb
       parse-torrent:
         specifier: ^11.0.18
         version: 11.0.18
@@ -50,28 +50,21 @@ importers:
 
 packages:
 
-  '@effect/platform-bun@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee':
-    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee}
+  '@effect/platform-bun@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@c9ea0bb':
+    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@c9ea0bb}
     version: 0.61.6
     peerDependencies:
       effect: ^4.0.0
 
-  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@322b0ee':
-    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@322b0ee}
+  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@c9ea0bb':
+    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@c9ea0bb}
     version: 0.31.6
     engines: {node: '>=18.0.0'}
     peerDependencies:
       effect: ^4.0.0
 
-  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@484841b':
-    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@484841b}
-    version: 0.31.6
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      effect: ^4.0.0
-
-  '@effect/platform-node@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b':
-    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b}
+  '@effect/platform-node@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@c9ea0bb':
+    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@c9ea0bb}
     version: 0.77.6
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -662,8 +655,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b:
-    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b}
+  effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb:
+    resolution: {tarball: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb}
     version: 4.0.0
 
   emoji-regex@8.0.0:
@@ -1359,6 +1352,10 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
+  uuid@11.1.0:
+    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+    hasBin: true
+
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -1414,36 +1411,27 @@ packages:
 
 snapshots:
 
-  '@effect/platform-bun@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@322b0ee(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)':
+  '@effect/platform-bun@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)':
     dependencies:
-      '@effect/platform-node-shared': https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@322b0ee(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)
-      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
+      '@effect/platform-node-shared': https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)
+      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@322b0ee(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)':
+  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)':
     dependencies:
       '@types/ws': 8.18.1
-      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
+      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb
       ws: 8.18.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node-shared@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@484841b(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)':
+  '@effect/platform-node@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)':
     dependencies:
-      '@types/ws': 8.18.1
-      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
-      ws: 8.18.3
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@effect/platform-node@https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@484841b(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)':
-    dependencies:
-      '@effect/platform-node-shared': https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@484841b(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b)
-      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b
+      '@effect/platform-node-shared': https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node-shared@c9ea0bb(effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb)
+      effect: https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb
       mime: 4.0.7
       undici: 7.15.0
     transitivePeerDependencies:
@@ -1904,13 +1892,14 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@484841b:
+  effect@https://pkg.pr.new/Effect-TS/effect-smol/effect@c9ea0bb:
     dependencies:
       '@standard-schema/spec': 1.0.0
       fast-check: 4.2.0
       find-my-way-ts: 0.1.6
       msgpackr: 1.11.5
       multipasta: 0.2.7
+      uuid: 11.1.0
 
   emoji-regex@8.0.0: {}
 
@@ -2677,6 +2666,8 @@ snapshots:
   unpipe@1.0.0: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.0: {}
 
   vary@1.1.2: {}
 

@@ -96,7 +96,7 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
 
     const listUncached = (request: StreamRequest, baseUrl: URL) => {
       const embellisher =
-        embellishers.size > 0 ? Iterable.unsafeHead(embellishers) : undefined
+        embellishers.size > 0 ? Iterable.headUnsafe(embellishers) : undefined
 
       // map request to queries
       return queriesFromRequest(request).pipe(

@@ -90,7 +90,7 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
           .findEpisode(season, episode)
           .asEffect()
           .pipe(
-            Effect.flatMap((_) => Effect.fromNullable(_.tvdb_id)),
+            Effect.flatMap((_) => Effect.fromNullishOr(_.tvdb_id)),
             Effect.flatMap(tvdb.lookupEpisode),
             Effect.option,
           )

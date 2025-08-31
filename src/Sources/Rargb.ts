@@ -144,7 +144,7 @@ export const SourceRargbLive = Effect.gen(function* () {
         Effect.flatMap((r) => r.text),
         Effect.flatMap((html) => {
           const $ = Cheerio.load(html)
-          return Effect.fromNullable(
+          return Effect.fromNullishOr(
             $("td.lista a[href^='magnet:']").attr("href"),
           )
         }),

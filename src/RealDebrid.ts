@@ -128,7 +128,7 @@ export const RealDebridLayer = Effect.gen(function* () {
           yield* selectFiles(torrent.id, [request.file])
         }
         const info = yield* getTorrentInfo(torrent.id)
-        const link = yield* Effect.fromNullable(info.links[0])
+        const link = yield* Effect.fromNullishOr(info.links[0])
         return yield* unrestrictLink(link)
       },
       Effect.tapCause(Effect.log),

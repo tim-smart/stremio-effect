@@ -79,7 +79,7 @@ const ApiRoutes = Effect.gen(function* () {
     HttpRouter.route(
       "GET",
       "/manifest.json",
-      Effect.succeed(HttpServerResponse.unsafeJson(manifest)),
+      Effect.succeed(HttpServerResponse.jsonUnsafe(manifest)),
     ),
     HttpRouter.route(
       "GET",
@@ -103,7 +103,9 @@ const ApiRoutes = Effect.gen(function* () {
         )
         yield* Effect.log("StreamRequest", streamRequest)
         const url = baseUrl.pipe(
-          Option.orElse(() => HttpServerRequest.toURL(request)),
+          Option.orElse(() =>
+            Option.fromUndefinedOr(HttpServerRequest.toURL(request)),
+          ),
           Option.getOrElse(() => new URL("http://localhost:8000")),
           (url) => {
             url.pathname = Redacted.value(token)
@@ -116,7 +118,7 @@ const ApiRoutes = Effect.gen(function* () {
             ? yield* Effect.tap(list, preloadNextEpisode(streamRequest, url))
             : yield* list
 
-        return HttpServerResponse.unsafeJson({
+        return HttpServerResponse.jsonUnsafe({
           streams: streams.map((_) => _.asStremio),
         })
       }),

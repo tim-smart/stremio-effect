@@ -149,7 +149,7 @@ export const Source1337xLive = Effect.gen(function* () {
         Effect.flatMap((r) => r.text),
         Effect.flatMap((html) => {
           const $ = Cheerio.load(html)
-          return Effect.fromNullable(
+          return Effect.fromNullishOr(
             $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
           )
         }),
