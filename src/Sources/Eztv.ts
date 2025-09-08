@@ -10,10 +10,11 @@ import { Sources } from "../Sources.js"
 import { qualityFromTitle } from "../Utils.js"
 import { TorrentMeta } from "../TorrentMeta.js"
 import { Schema as S } from "effect/schema"
-import { Data, Filter, Option } from "effect/data"
-import { Cache } from "effect/caching"
+import { Filter, Option } from "effect/data"
 import { Stream } from "effect/stream"
 import { Match } from "effect/match"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "../Persistence.js"
 
 export const SourceEztvLive = Effect.gen(function* () {
   const torrentMeta = yield* TorrentMeta
@@ -29,39 +30,42 @@ export const SourceEztvLive = Effect.gen(function* () {
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://eztvx.to/api")),
   )
 
-  class GetPage extends Data.Class<{
-    imdbId: string
-    page: number
-  }> {
-    // [PrimaryKey.symbol]() {
-    //   return Hash.hash(this).toString()
-    // }
-  }
-  const getPageCache = yield* Cache.makeWith({
-    // storeId: "Source.Eztv.getPage",
-    lookup: (_: GetPage) =>
-      pipe(
-        client.get("/get-torrents", {
-          urlParams: {
-            page: _.page,
-            limit: "100",
-            imdb_id: _.imdbId.replace("tt", ""),
-          },
-        }),
-        Effect.flatMap(GetTorrents.decodeResponse),
-        Effect.orDie,
-      ),
+  const getPage = (imdbId: string, page: number) =>
+    pipe(
+      client.get("/get-torrents", {
+        urlParams: {
+          page,
+          limit: "100",
+          imdb_id: imdbId,
+        },
+      }),
+      Effect.flatMap(GetTorrents.decodeResponse),
+      Effect.orDie,
+    )
+
+  class GetPage extends Persistable.Class<{
+    payload: { imdbId: string; page: number }
+  }>()("Eztv.GetPage", {
+    primaryKey: (_) => `${_.imdbId}-${_.page}`,
+    success: GetTorrents,
+  }) {}
+
+  const getPageCache = yield* PersistedCache.make({
+    storeId: "Eztv.pages",
+    lookup: ({ imdbId, page }: GetPage) => getPage(imdbId, page),
     timeToLive: (exit) => {
       if (exit._tag === "Failure") return "1 minute"
       return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
     },
-    capacity: 512,
+    inMemoryCapacity: 16,
   })
 
-  const stream = (imdbId: string) =>
+  const stream = (imdbId: string, cached = false) =>
     Stream.paginateArrayEffect(1, (page) =>
       pipe(
-        Cache.get(getPageCache, new GetPage({ imdbId, page })),
+        cached
+          ? getPageCache.get(new GetPage({ imdbId, page }))
+          : getPage(imdbId, page),
         Effect.map((_) => [
           _.torrents,
           Option.some(page + 1).pipe(
@@ -144,7 +148,10 @@ export const SourceEztvLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, TorrentMeta.layer]))
+}).pipe(
+  Layer.effectDiscard,
+  Layer.provide([Sources.layer, TorrentMeta.layer, PersistenceLayer]),
+)
 
 // schemas
 

@@ -18,10 +18,12 @@ import {
 import { StreamRequest, streamRequestId } from "./Stremio.js"
 import { TorrentMeta } from "./TorrentMeta.js"
 import { Stream } from "effect/stream"
-import { Data, Filter, Option } from "effect/data"
-import { Equal, Hash, PrimaryKey } from "effect/interfaces"
-import { Cache } from "effect/caching"
+import { Filter, Option } from "effect/data"
+import { Equal, Hash } from "effect/interfaces"
 import { Array, Iterable } from "effect/collections"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { Schema } from "effect/schema"
+import { PersistenceLayer } from "./Persistence.js"
 
 export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
   make: Effect.gen(function* () {
@@ -201,44 +203,41 @@ export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
         Stream.ignoreCause,
       )
 
-    class ListRequest extends Data.Class<{
-      readonly request: StreamRequest
-      readonly baseUrl: URL
-    }> {
+    class ListRequest extends Persistable.Class<{
+      payload: {
+        readonly request: StreamRequest
+        readonly baseUrl: URL
+      }
+    }>()("Sources.ListRequest", {
+      primaryKey: ({ request }) => streamRequestId(request),
+      success: SourceStream.Array,
+      error: Schema.String,
+    }) {
       [Equal.symbol](that: ListRequest): boolean {
         return Equal.equals(this.request, that.request)
       }
       [Hash.symbol]() {
         return Hash.hash(this.request)
       }
-      [PrimaryKey.symbol]() {
-        return streamRequestId(this.request)
-      }
-      // get [Schema.symbolWithResult]() {
-      //   return {
-      //     success: SourceStream.Array,
-      //     failure: Schema.String,
-      //   }
-      // }
     }
-    const listCache = yield* Cache.makeWith({
-      // storeId: "Sources.listCache",
+    const listCache = yield* PersistedCache.make({
+      storeId: "Sources.listCache",
       lookup: (request: ListRequest) =>
         listUncached(request.request, request.baseUrl),
       timeToLive: (exit) => {
         if (exit._tag === "Failure") return "1 minute"
         return exit.value.length > 5 ? "3 days" : "6 hours"
       },
-      capacity: 1024,
+      inMemoryCapacity: 16,
     })
     const list = (request: StreamRequest, baseUrl: URL) =>
-      Cache.get(listCache, new ListRequest({ request, baseUrl }))
+      listCache.get(new ListRequest({ request, baseUrl }))
 
     return { list, register, registerEmbellisher } as const
   }),
 }) {
   static layer = Layer.effect(this)(this.make).pipe(
-    Layer.provide([TorrentMeta.layer, Cinemeta.layer]),
+    Layer.provide([TorrentMeta.layer, Cinemeta.layer, PersistenceLayer]),
   )
 }
 

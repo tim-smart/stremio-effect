@@ -5,10 +5,10 @@ import { SourceStream } from "../Domain/SourceStream.js"
 import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { Cache } from "effect/caching"
 import { Array } from "effect/collections"
 import { Match } from "effect/match"
 import { Stream } from "effect/stream"
+import { PersistenceLayer } from "../Persistence.js"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -20,44 +20,39 @@ export const SourceNyaaLive = Effect.gen(function* () {
     }),
   )
 
-  const searchCache = yield* Cache.makeWith({
-    // storeId: "Source.Nyaa.search",
-    lookup: (request: AbsoluteSeriesQuery) =>
-      pipe(
-        client.get("/", {
-          urlParams: {
-            f: 1,
-            c: "1_2",
-            s: "seeders",
-            o: "desc",
-            q: request.asQuery,
-          },
-        }),
-        Effect.flatMap((r) => r.text),
-        Effect.map((html) =>
-          pipe(
-            parseResults(html),
-            Array.map(
-              (result) =>
-                new SourceStream({
-                  source: "Nyaa",
-                  infoHash: infoHashFromMagnet(result.magnet),
-                  title: result.title,
-                  magnetUri: result.magnet,
-                  quality: qualityFromTitle(result.title),
-                  seeds: result.seeds,
-                  peers: result.peers,
-                  sizeDisplay: result.size,
-                }),
-            ),
+  const search = (request: AbsoluteSeriesQuery) =>
+    pipe(
+      client.get("/", {
+        urlParams: {
+          f: 1,
+          c: "1_2",
+          s: "seeders",
+          o: "desc",
+          q: request.asQuery,
+        },
+      }),
+      Effect.flatMap((r) => r.text),
+      Effect.map((html) =>
+        pipe(
+          parseResults(html),
+          Array.map(
+            (result) =>
+              new SourceStream({
+                source: "Nyaa",
+                infoHash: infoHashFromMagnet(result.magnet),
+                title: result.title,
+                magnetUri: result.magnet,
+                quality: qualityFromTitle(result.title),
+                seeds: result.seeds,
+                peers: result.peers,
+                sizeDisplay: result.size,
+              }),
           ),
         ),
-        Effect.orDie,
-        Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
       ),
-    timeToLive: (exit, req) => req.timeToLive(exit),
-    capacity: 128,
-  })
+      Effect.orDie,
+      Effect.withSpan("Source.Nyaa.search", { attributes: { ...request } }),
+    )
 
   const parseResults = (html: string) => {
     const $ = Cheerio.load(html)
@@ -88,7 +83,7 @@ export const SourceNyaaLive = Effect.gen(function* () {
     name: "Nyaa",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("AbsoluteSeriesQuery", (query) =>
-        Cache.get(searchCache, query).pipe(
+        search(query).pipe(
           Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
           Effect.withSpan("Source.Nyaa.Series", {
@@ -101,4 +96,4 @@ export const SourceNyaaLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
+}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, PersistenceLayer]))

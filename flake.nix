@@ -17,6 +17,7 @@
             bun
             corepack
             nodejs
+            redis
           ];
         };
 

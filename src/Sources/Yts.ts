@@ -9,10 +9,9 @@ import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash } from "../Utils.js"
 import { Schema as S } from "effect/schema"
-import { Data } from "effect/data"
-import { Cache } from "effect/caching"
 import { Match } from "effect/match"
 import { Stream } from "effect/stream"
+import { PersistenceLayer } from "../Persistence.js"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -27,34 +26,20 @@ export const SourceYtsLive = Effect.gen(function* () {
     }),
   )
 
-  class DetailsRequest extends Data.Class<{ imdbId: string }> {
-    // [PrimaryKey.symbol]() {
-    //   return this.imdbId
-    // }
-  }
-
-  const details = yield* Cache.makeWith({
-    // storeId: "Source.Yts.details",
-    lookup: ({ imdbId }: DetailsRequest) =>
-      pipe(
-        client.get("/movie_details.json", { urlParams: { imdb_id: imdbId } }),
-        Effect.flatMap(MovieDetails.decodeResponse),
-        Effect.orDie,
-        Effect.map((_) => _.data.movie),
-        Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
-      ),
-    timeToLive: (exit) => {
-      if (exit._tag === "Failure") return "5 minutes"
-      return "3 days"
-    },
-    capacity: 128,
-  })
+  const details = (imdbId: string) =>
+    pipe(
+      client.get("/movie_details.json", { urlParams: { imdb_id: imdbId } }),
+      Effect.flatMap(MovieDetails.decodeResponse),
+      Effect.orDie,
+      Effect.map((_) => _.data.movie),
+      Effect.withSpan("Source.Yts.details", { attributes: { imdbId } }),
+    )
 
   yield* sources.register({
     name: "YTS",
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImbdMovieQuery", ({ imdbId }) =>
-        Cache.get(details, new DetailsRequest({ imdbId })).pipe(
+        details(imdbId).pipe(
           Effect.map((_) => _.streams),
           Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
@@ -70,7 +55,7 @@ export const SourceYtsLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
+}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, PersistenceLayer]))
 
 // schema
 

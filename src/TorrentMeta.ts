@@ -7,8 +7,9 @@ import { SourceStreamWithFile } from "./Domain/SourceStream.js"
 import ParseTorrent from "parse-torrent"
 import { Effect, Layer, pipe, ServiceMap } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { Cache } from "effect/caching"
 import { Schema } from "effect/schema"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "./Persistence.js"
 
 export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
   make: Effect.gen(function* () {
@@ -19,9 +20,16 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
       HttpClient.filterStatusOk,
     )
 
-    const fromHashCache = yield* Cache.makeWith({
-      // storeId: "TorrentMeta.fromHash",
-      lookup: (infoHash: string) =>
+    class TorrentLookup extends Persistable.Class<{
+      payload: { infoHash: string }
+    }>()("TorrentMeta.TorrentLookup", {
+      primaryKey: (_) => _.infoHash,
+      success: TorrentMetadata,
+    }) {}
+
+    const fromHashCache = yield* PersistedCache.make({
+      storeId: "TorrentMeta.fromHash",
+      lookup: ({ infoHash }: TorrentLookup) =>
         client.get(`/${infoHash}.torrent`).pipe(
           Effect.flatMap((_) => _.arrayBuffer),
           Effect.flatMap((buffer) =>
@@ -31,7 +39,7 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
           Effect.orDie,
         ),
       timeToLive: (exit) => (exit._tag === "Failure" ? "1 minute" : "3 days"),
-      capacity: 512,
+      inMemoryCapacity: 16,
     })
 
     const parse = (buffer: ArrayBuffer) =>
@@ -47,7 +55,7 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
 
     const fromHash = (hash: string) =>
       pipe(
-        Cache.get(fromHashCache, hash),
+        fromHashCache.get(new TorrentLookup({ infoHash: hash })),
         Effect.timeout(5000),
         Effect.withSpan("TorrentMeta.fromHash", { attributes: { hash } }),
       )
@@ -55,7 +63,9 @@ export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
     return { fromMagnet, fromHash, parse } as const
   }),
 }) {
-  static layer = Layer.effect(this)(this.make)
+  static layer = Layer.effect(this)(this.make).pipe(
+    Layer.provide(PersistenceLayer),
+  )
 }
 
 export class TorrentFile extends Schema.Class<TorrentFile>("TorrentFile")({

@@ -13,11 +13,12 @@ import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema as S } from "effect/schema"
-import { Data, Option } from "effect/data"
-import { Cache } from "effect/caching"
+import { Option } from "effect/data"
 import { Match } from "effect/match"
 import { Array } from "effect/collections"
 import { Stream } from "effect/stream"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "../Persistence.js"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
@@ -32,14 +33,14 @@ export const SourceTpbLive = Effect.gen(function* () {
     HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
   )
 
-  class SearchRequest extends Data.Class<{ imdbId: string }> {
-    // [PrimaryKey.symbol]() {
-    //   return Hash.hash(this).toString()
-    // }
-  }
-
-  const search = yield* Cache.makeWith({
-    // storeId: "Source.Tpb.search",
+  class SearchRequest extends Persistable.Class<{
+    payload: { imdbId: string }
+  }>()("Tpb.SearchRequest", {
+    primaryKey: (_) => _.imdbId,
+    success: SearchResult.Array,
+  }) {}
+  const search = yield* PersistedCache.make({
+    storeId: "Tpb.search",
     lookup: ({ imdbId }: SearchRequest) =>
       client.get("/q.php", { urlParams: { q: imdbId } }).pipe(
         Effect.flatMap(SearchResult.decodeResponse),
@@ -53,28 +54,17 @@ export const SourceTpbLive = Effect.gen(function* () {
       if (exit._tag === "Failure") return "5 minutes"
       return exit.value.length > 0 ? "3 days" : "6 hours"
     },
-    capacity: 128,
+    inMemoryCapacity: 8,
   })
 
-  class FilesRequest extends Data.Class<{ id: string }> {
-    // [PrimaryKey.symbol]() {
-    //   return Hash.hash(this).toString()
-    // }
-  }
-
-  const files = yield* Cache.makeWith({
-    // storeId: "Source.Tpb.files",
-    lookup: ({ id }: FilesRequest) =>
-      client.get("/f.php", { urlParams: { id } }).pipe(
-        Effect.flatMap(HttpClientResponse.schemaBodyJson(File.Array)),
-        Effect.orElseSucceed(() => []),
-        Effect.withSpan("Source.Tpb.files", {
-          attributes: { id },
-        }),
-      ),
-    timeToLive: (exit) => (exit._tag === "Failure" ? "5 minutes" : "3 days"),
-    capacity: 128,
-  })
+  const files = (id: string) =>
+    client.get("/f.php", { urlParams: { id } }).pipe(
+      Effect.flatMap(HttpClientResponse.schemaBodyJson(File.Array)),
+      Effect.orElseSucceed(() => []),
+      Effect.withSpan("Source.Tpb.files", {
+        attributes: { id },
+      }),
+    )
 
   yield* sources.register({
     name: "Tpb",
@@ -82,16 +72,14 @@ export const SourceTpbLive = Effect.gen(function* () {
       Match.tag("ImdbSeasonQuery", (query) => {
         if (Option.isNone(query.titleMatcher)) return Stream.empty
         const titleMatcher = query.titleMatcher.value
-        return Cache.get(
-          search,
-          new SearchRequest({ imdbId: query.imdbId }),
-        ).pipe(
+        return pipe(
+          search.get(new SearchRequest({ imdbId: query.imdbId })),
           Effect.map(Array.filter((_) => titleMatcher(_.name))),
           Stream.fromIterableEffect,
           Stream.flatMap(
             (result) =>
               pipe(
-                Cache.get(files, new FilesRequest({ id: result.id })),
+                files(result.id),
                 Effect.map(
                   (files): Stream.Stream<SourceSeason | SourceStreamWithFile> =>
                     Array.match(files, {
@@ -122,11 +110,13 @@ export const SourceTpbLive = Effect.gen(function* () {
             { concurrency: "unbounded" },
           ),
           Stream.orDie,
-          Stream.withSpan("Source.Tpb.Imdb season", { attributes: { query } }),
+          Stream.withSpan("Source.Tpb.Imdb season", {
+            attributes: { query },
+          }),
         )
       }),
       Match.tag("ImbdMovieQuery", "ImdbSeriesQuery", (query) =>
-        Cache.get(search, new SearchRequest({ imdbId: query.imdbId })).pipe(
+        search.get(new SearchRequest({ imdbId: query.imdbId })).pipe(
           Effect.map(Array.map((result) => result.asStream)),
           Effect.tapCause(Effect.logDebug),
           Effect.orElseSucceed(() => []),
@@ -142,7 +132,7 @@ export const SourceTpbLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
+}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, PersistenceLayer]))
 
 // schemas
 
@@ -159,7 +149,8 @@ export class SearchResult extends S.Class<SearchResult>("SearchResult")({
   category: S.String,
   imdb: S.String,
 }) {
-  static decodeResponse = HttpClientResponse.schemaBodyJson(S.Array(this))
+  static Array = S.Array(SearchResult)
+  static decodeResponse = HttpClientResponse.schemaBodyJson(this.Array)
 
   get asStream() {
     return new SourceStream({

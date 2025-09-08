@@ -1,5 +1,4 @@
 import { Effect, Layer, Schedule, ServiceMap } from "effect"
-import { Cache } from "effect/caching"
 import {
   AbsoluteSeriesQuery,
   ImdbAbsoluteSeriesQuery,
@@ -16,6 +15,8 @@ import {
 import { Data, Option } from "effect/data"
 import { Schema as S } from "effect/schema"
 import { Array } from "effect/collections"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "./Persistence.js"
 
 export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
   make: Effect.gen(function* () {
@@ -31,33 +32,50 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
       }),
     )
 
-    const lookupMovieCache = yield* Cache.makeWith({
-      lookup: (imdbId: string) =>
+    class LookupMovie extends Persistable.Class<{
+      payload: { imdbId: string }
+    }>()("Cinemeta.LookupMovie", {
+      primaryKey: (_) => _.imdbId,
+      success: MovieMeta,
+    }) {}
+
+    const lookupMovieCache = yield* PersistedCache.make({
+      storeId: "Cinemeta.movies",
+      lookup: ({ imdbId }: LookupMovie) =>
         client.get(`/movie/${imdbId}.json`).pipe(
           Effect.flatMap(Movie.decodeResponse),
           Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbId } }),
         ),
-      capacity: 1024,
+      inMemoryCapacity: 16,
       timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
     })
-    const lookupMovie = (imdbID: string) => Cache.get(lookupMovieCache, imdbID)
+    const lookupMovie = (imdbID: string) =>
+      lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
 
-    const lookupSeriesCache = yield* Cache.makeWith({
-      lookup: (imdbID: string) =>
-        client.get(`/series/${imdbID}.json`).pipe(
+    class LookupSeries extends Persistable.Class<{
+      payload: { imdbId: string }
+    }>()("Cinemeta.LookupSeries", {
+      primaryKey: (_) => _.imdbId,
+      success: SeriesMeta,
+    }) {}
+
+    const lookupSeriesCache = yield* PersistedCache.make({
+      storeId: "Cinemeta.series",
+      lookup: ({ imdbId }: LookupSeries) =>
+        client.get(`/series/${imdbId}.json`).pipe(
           Effect.flatMap(Series.decodeResponse),
           Effect.map((_) => _.meta),
           Effect.orDie,
-          Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbID } }),
+          Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbId } }),
         ),
       timeToLive: (exit) =>
         exit._tag === "Success" ? "12 hours" : "5 minutes",
-      capacity: 1024,
+      inMemoryCapacity: 16,
     })
     const lookupSeries = (imdbID: string) =>
-      Cache.get(lookupSeriesCache, imdbID)
+      lookupSeriesCache.get(new LookupSeries({ imdbId: imdbID }))
 
     const tvdb = yield* Tvdb
     const lookupEpisode = Effect.fnUntraced(
@@ -112,7 +130,9 @@ export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
     return { lookupMovie, lookupSeries, lookupEpisode } as const
   }),
 }) {
-  static layer = Layer.effect(this)(this.make).pipe(Layer.provide(Tvdb.layer))
+  static layer = Layer.effect(this)(this.make).pipe(
+    Layer.provide([Tvdb.layer, PersistenceLayer]),
+  )
 }
 
 export class Video extends S.Class<Video>("Video")({

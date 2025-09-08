@@ -8,8 +8,8 @@ import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 import { Schema } from "effect/schema"
 import { Stream } from "effect/stream"
 import { Match } from "effect/match"
-import { Cache } from "effect/caching"
-import { Data } from "effect/data"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "../Persistence.js"
 
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -47,46 +47,40 @@ export const Source1337xLive = Effect.gen(function* () {
     return streams
   }
 
-  class SearchRequest extends Data.Class<{
-    query: string
-    category: "Movies" | "TV"
-  }> {
-    // [PrimaryKey.symbol]() {
-    //   return `${this.category}/${this.query}`
-    // }
-    // get [Schema.symbolWithResult]() {
-    //   return {
-    //     success: SearchResult.Array,
-    //     failure: Schema.Never,
-    //   }
-    // }
-  }
+  class SearchRequest extends Persistable.Class<{
+    payload: {
+      query: string
+      category: "Movies" | "TV"
+    }
+  }>()("1337x.SearchRequest", {
+    primaryKey: ({ category, query }) => `${category}-${query}`,
+    success: SearchResult.Array,
+  }) {}
 
-  const searchCache = yield* Cache.makeWith({
-    // storeId: "Source.1337x.search",
-    lookup: (request: SearchRequest) =>
+  const search = yield* PersistedCache.make({
+    storeId: "1337x.search",
+    lookup: ({ query, category }: SearchRequest) =>
       pipe(
         client.get(
-          `/sort-category-search/${encodeURIComponent(request.query)}/${request.category}/seeders/desc/1/`,
+          `/sort-category-search/${encodeURIComponent(query)}/${category}/seeders/desc/1/`,
         ),
         Effect.flatMap((r) => r.text),
         Effect.map(parseResults),
         Effect.orDie,
         Effect.withSpan("Source.1337x.search", {
-          attributes: { ...request },
+          attributes: { query, category },
         }),
       ),
     timeToLive: (exit) => {
       if (exit._tag === "Failure") return "1 minute"
       return exit.value.length > 5 ? "3 days" : "3 hours"
     },
-    capacity: 1024,
+    inMemoryCapacity: 8,
   })
 
   const searchStream = (request: TitleVideoQuery) =>
     pipe(
-      Cache.get(
-        searchCache,
+      search.get(
         new SearchRequest({
           query: request.asQuery,
           category: request._tag === "MovieQuery" ? "Movies" : "TV",
@@ -96,10 +90,7 @@ export const Source1337xLive = Effect.gen(function* () {
       Stream.take(30),
       Stream.flatMap(
         (result) =>
-          Cache.get(
-            magnetLink,
-            new MagnetLinkRequest({ url: result.url }),
-          ).pipe(
+          magnetLink(result.url).pipe(
             Effect.map((magnet) =>
               request._tag === "SeasonQuery"
                 ? new SourceSeason({
@@ -131,32 +122,16 @@ export const Source1337xLive = Effect.gen(function* () {
       ),
     )
 
-  class MagnetLinkRequest extends Data.Class<{ url: string }> {
-    // [PrimaryKey.symbol]() {
-    //   return Hash.hash(this).toString()
-    // }
-    // get [Schema.symbolWithResult]() {
-    //   return {
-    //     success: Schema.String,
-    //     failure: Schema.Never,
-    //   }
-    // }
-  }
-  const magnetLink = yield* Cache.makeWith({
-    // storeId: "Source.1337x.magnetLink",
-    lookup: ({ url }: MagnetLinkRequest) =>
-      client.get(url).pipe(
-        Effect.flatMap((r) => r.text),
-        Effect.flatMap((html) => {
-          const $ = Cheerio.load(html)
-          return Effect.fromNullishOr(
-            $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
-          )
-        }),
-      ),
-    timeToLive: (exit) => (exit._tag === "Success" ? "3 weeks" : "5 minutes"),
-    capacity: 512,
-  })
+  const magnetLink = (url: string) =>
+    client.get(url).pipe(
+      Effect.flatMap((r) => r.text),
+      Effect.flatMap((html) => {
+        const $ = Cheerio.load(html)
+        return Effect.fromNullishOr(
+          $("div.torrent-detail-page a[href^='magnet:']").attr("href"),
+        )
+      }),
+    )
 
   const sources = yield* Sources
   yield* sources.register({
@@ -186,7 +161,7 @@ export const Source1337xLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide(Sources.layer))
+}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, PersistenceLayer]))
 
 class SearchResult extends Schema.Class<SearchResult>("SearchResult")({
   url: Schema.String,

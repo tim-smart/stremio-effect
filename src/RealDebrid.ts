@@ -5,7 +5,6 @@ import {
   HttpRouter,
   HttpServerResponse,
 } from "effect/unstable/http"
-import { Request } from "effect/batching"
 import { Config } from "effect/config"
 import { Effect, flow, Layer, pipe, Schedule } from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
@@ -14,8 +13,9 @@ import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
 import { Schema } from "effect/schema"
 import { Array } from "effect/collections"
-import { Cache } from "effect/caching"
 import { Option, Order } from "effect/data"
+import { Persistable, PersistedCache } from "effect/unstable/persistence"
+import { PersistenceLayer } from "./Persistence.js"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
@@ -93,32 +93,15 @@ export const RealDebridLayer = Effect.gen(function* () {
       Effect.flatMap(decodeUnrestrictLinkResponse),
     )
 
-  class ResolveRequest extends Request.TaggedClass("ResolveRequest")<
-    {
-      infoHash: string
-      file: string
-    },
-    typeof UnrestrictLinkResponse.Type
-  > {}
-  //   "ResolveRequest",
-  //   {
-  //     failure: Schema.Never,
-  //     success: UnrestrictLinkResponse,
-  //     payload: {
-  //       infoHash: Schema.String,
-  //       file: Schema.String,
-  //     },
-  //   },
-  // ) {
-  //   [PrimaryKey.symbol]() {
-  //     return Hash.hash(this).toString()
-  //   }
-  // }
-  const resolve = yield* Cache.makeWith<
-    ResolveRequest,
-    { readonly download: string }
-  >({
-    // storeId: "RealDebrid.resolve",
+  class ResolveRequest extends Persistable.Class<{
+    payload: { infoHash: string; file: string }
+  }>()("ResolveRequest", {
+    primaryKey: (self) => `${self.infoHash}-${self.file}`,
+    success: UnrestrictLinkResponse,
+  }) {}
+
+  const resolve = yield* PersistedCache.make<ResolveRequest, never>({
+    storeId: "RealDebrid.resolve",
     lookup: Effect.fnUntraced(
       function* (request) {
         const torrent = yield* addMagnet(request.infoHash)
@@ -139,7 +122,7 @@ export const RealDebridLayer = Effect.gen(function* () {
         }),
     ),
     timeToLive: (exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
-    capacity: 1024,
+    inMemoryCapacity: 16,
   })
 
   yield* sources.registerEmbellisher({
@@ -181,7 +164,7 @@ export const RealDebridLayer = Effect.gen(function* () {
     "/real-debrid/:hash/:file",
     resolveParams.pipe(
       Effect.flatMap(({ hash: infoHash, file }) =>
-        Cache.get(resolve, new ResolveRequest({ infoHash, file })),
+        resolve.get(new ResolveRequest({ infoHash, file })),
       ),
       Effect.map((url) =>
         HttpServerResponse.empty({ status: 302 }).pipe(
@@ -202,7 +185,7 @@ export const RealDebridLayer = Effect.gen(function* () {
     service: "RealDebrid",
   }),
   Layer.effectDiscard,
-  Layer.provide([Sources.layer, StremioRouter.layer]),
+  Layer.provide([Sources.layer, StremioRouter.layer, PersistenceLayer]),
 )
 
 const AddMagnetResponse = Schema.Struct({
