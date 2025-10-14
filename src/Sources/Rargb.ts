@@ -112,8 +112,9 @@ export const SourceRargbLive = Effect.gen(function* () {
             Stream.fromEffect,
             Stream.ignoreCause,
           ),
-        { concurrency: 5 },
+        { concurrency: "unbounded" },
       ),
+      Stream.buffer({ capacity: 20 }),
     )
 
   const magnetLink = (url: string) =>

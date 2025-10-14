@@ -80,9 +80,9 @@ export const SourceTpbLive = Effect.gen(function* () {
               pipe(
                 files(result.id),
                 Effect.map(
-                  (files): Stream.Stream<SourceSeason | SourceStreamWithFile> =>
+                  (files): Array<SourceSeason | SourceStreamWithFile> =>
                     Array.match(files, {
-                      onEmpty: () => Stream.make(result.asSeason),
+                      onEmpty: () => [result.asSeason],
                       onNonEmpty: (files) =>
                         pipe(
                           Array.map(
@@ -100,11 +100,10 @@ export const SourceTpbLive = Effect.gen(function* () {
                                 fileNumber: index,
                               }),
                           ),
-                          Stream.fromIterable,
                         ),
                     }),
                 ),
-                Stream.unwrap,
+                Stream.fromIterableEffect,
               ),
             { concurrency: "unbounded" },
           ),

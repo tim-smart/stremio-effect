@@ -1,6 +1,6 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import { Effect, Layer, Match, pipe, Schedule } from "effect"
+import { Console, Effect, Layer, Match, pipe, Schedule } from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
