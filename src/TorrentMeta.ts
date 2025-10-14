@@ -11,7 +11,7 @@ import { Schema } from "effect/schema"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 
-export class TorrentMeta extends ServiceMap.Key<TorrentMeta>()("TorrentMeta", {
+export class TorrentMeta extends ServiceMap.Service<TorrentMeta>()("TorrentMeta", {
   make: Effect.gen(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(

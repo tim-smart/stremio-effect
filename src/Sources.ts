@@ -25,27 +25,21 @@ import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { Schema } from "effect/schema"
 import { PersistenceLayer } from "./Persistence.js"
 
-export class Sources extends ServiceMap.Key<Sources>()("stremio/Sources", {
+export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
   make: Effect.gen(function* () {
     const sources = new Set<Source>()
     const embellishers = new Set<Embellisher>()
     const torrentMeta = yield* TorrentMeta
 
     const register = (source: Source) =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          sources.add(source)
-        }),
-        () => Effect.sync(() => sources.delete(source)),
-      )
+      Effect.sync(() => {
+        sources.add(source)
+      })
 
     const registerEmbellisher = (embellisher: Embellisher) =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          embellishers.add(embellisher)
-        }),
-        () => Effect.sync(() => embellishers.delete(embellisher)),
-      )
+      Effect.sync(() => {
+        embellishers.add(embellisher)
+      })
 
     const cinemeta = yield* Cinemeta
     const queriesFromRequest: (

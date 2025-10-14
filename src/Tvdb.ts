@@ -3,14 +3,13 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Effect, Layer, Schedule, ServiceMap } from "effect"
-import { Config } from "effect/config"
+import { Config, Effect, Layer, Schedule, ServiceMap } from "effect"
 import { Schema as S, Schema } from "effect/schema"
 import { Redacted } from "effect/data"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 
-export class Tvdb extends ServiceMap.Key<Tvdb>()("Tvdb", {
+export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
   make: Effect.gen(function* () {
     const apiKey = yield* Config.schema(
       Schema.Redacted(Schema.String),

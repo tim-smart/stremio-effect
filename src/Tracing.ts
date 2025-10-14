@@ -1,7 +1,6 @@
 import { OtlpTracer } from "effect/unstable/observability"
 import { NodeHttpClient } from "@effect/platform-node"
-import { Effect, Layer } from "effect"
-import { Config } from "effect/config"
+import { Config, Effect, Layer } from "effect"
 import { Redacted } from "effect/data"
 import { Schema } from "effect/schema"
 

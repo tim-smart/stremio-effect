@@ -18,7 +18,7 @@ import { Array } from "effect/collections"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 
-export class Cinemeta extends ServiceMap.Key<Cinemeta>()("Cinemeta", {
+export class Cinemeta extends ServiceMap.Service<Cinemeta>()("Cinemeta", {
   make: Effect.gen(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(

@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Effect, Layer, pipe, Schedule } from "effect"
+import { Effect, Layer, Match, pipe, Schedule } from "effect"
 import {
   SourceSeason,
   SourceStream,
@@ -14,7 +14,6 @@ import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
 import { Schema as S } from "effect/schema"
 import { Option } from "effect/data"
-import { Match } from "effect/match"
 import { Array } from "effect/collections"
 import { Stream } from "effect/stream"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"

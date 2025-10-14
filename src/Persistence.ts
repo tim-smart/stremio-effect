@@ -1,7 +1,6 @@
 import { KeyValueStore, Persistence } from "effect/unstable/persistence"
 import { NodePersistence, NodeServices } from "@effect/platform-node"
-import { Effect, Layer } from "effect"
-import { Config } from "effect/config"
+import { Config, Effect, Layer } from "effect"
 import { Option } from "effect/data"
 
 export const PersistenceLayer = Layer.unwrap(

@@ -1,4 +1,4 @@
-import { Effect, Layer, pipe, ServiceMap } from "effect"
+import { Config, Effect, Layer, Match, pipe, ServiceMap } from "effect"
 import {
   HttpRouter,
   HttpServerRequest,
@@ -9,8 +9,6 @@ import { Sources } from "./Sources.js"
 import { ExtractTag } from "effect/types/Types"
 import { Cinemeta } from "./Cinemeta.js"
 import { Data, Option, Redacted } from "effect/data"
-import { Config } from "effect/config"
-import { Match } from "effect/match"
 import { Schema } from "effect/schema"
 
 export interface AddonConfig {
@@ -44,7 +42,7 @@ export const streamRequestId = StreamRequest.$match({
   Tv: ({ imdbId }) => `Tv:${imdbId}`,
 })
 
-export class StremioRouter extends ServiceMap.Key<
+export class StremioRouter extends ServiceMap.Service<
   StremioRouter,
   HttpRouter.HttpRouter
 >()("stremio/StremioRouter") {
@@ -162,7 +160,7 @@ const AllRoutes = Layer.mergeAll(ApiRoutes, HealthRoute).pipe(
   Layer.provide(HttpRouter.cors()),
 )
 
-export class StremioManifest extends ServiceMap.Key<
+export class StremioManifest extends ServiceMap.Service<
   StremioManifest,
   Stremio.Manifest
 >()("stremio/StremioManifest") {

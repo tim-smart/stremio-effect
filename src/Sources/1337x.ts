@@ -1,13 +1,12 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import { Effect, Layer, pipe, Schedule } from "effect"
+import { Effect, Layer, Match, pipe, Schedule } from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
 import { Schema } from "effect/schema"
 import { Stream } from "effect/stream"
-import { Match } from "effect/match"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "../Persistence.js"
 
@@ -151,8 +150,7 @@ export const Source1337xLive = Effect.gen(function* () {
                   method: "list",
                   query,
                 }),
-                Stream.fromEffect,
-                Stream.drain,
+                Stream.fromEffectDrain,
               ),
             ),
             Stream.withSpan("Source.1337x.list", { attributes: { query } }),

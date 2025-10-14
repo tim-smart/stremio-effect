@@ -3,11 +3,10 @@ import {
   NodeHttpServer,
   NodeRuntime,
 } from "@effect/platform-node"
-import { Layer } from "effect"
 import { createServer } from "node:http"
 import * as Net from "node:net"
 import { AddonLive } from "./Addon.js"
-import { Config } from "effect/config"
+import { Config, Layer } from "effect"
 import { MinimumLogLevel } from "effect/References"
 import { Schema } from "effect/schema"
 import { TracingLayer } from "./Tracing.js"

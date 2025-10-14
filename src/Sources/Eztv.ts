@@ -3,7 +3,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Effect, Layer, pipe, Schedule } from "effect"
+import { Effect, Layer, Match, pipe, Schedule } from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
@@ -12,7 +12,6 @@ import { TorrentMeta } from "../TorrentMeta.js"
 import { Schema as S } from "effect/schema"
 import { Filter, Option } from "effect/data"
 import { Stream } from "effect/stream"
-import { Match } from "effect/match"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "../Persistence.js"
 
@@ -61,7 +60,7 @@ export const SourceEztvLive = Effect.gen(function* () {
   })
 
   const stream = (imdbId: string, cached = false) =>
-    Stream.paginateArrayEffect(1, (page) =>
+    Stream.paginate(1, (page) =>
       pipe(
         cached
           ? getPageCache.get(new GetPage({ imdbId, page }))
@@ -111,8 +110,7 @@ export const SourceEztvLive = Effect.gen(function* () {
                 imdbId,
                 season,
               }),
-              Stream.fromEffect,
-              Stream.drain,
+              Stream.fromEffectDrain,
             ),
           ),
           Stream.withSpan("Source.Eztv.list season", {
@@ -136,8 +134,7 @@ export const SourceEztvLive = Effect.gen(function* () {
                 season,
                 episode,
               }),
-              Stream.fromEffect,
-              Stream.drain,
+              Stream.fromEffectDrain,
             ),
           ),
           Stream.withSpan("Source.Eztv.list", {

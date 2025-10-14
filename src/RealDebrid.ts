@@ -5,15 +5,14 @@ import {
   HttpRouter,
   HttpServerResponse,
 } from "effect/unstable/http"
-import { Config } from "effect/config"
-import { Effect, flow, Layer, pipe, Schedule } from "effect"
+import { Config, Effect, flow, Layer, pipe, Schedule } from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
-import { Schema } from "effect/schema"
 import { Array } from "effect/collections"
 import { Option, Order } from "effect/data"
+import { Schema } from "effect/schema"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 

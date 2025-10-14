@@ -1,5 +1,3 @@
-import { ConfigProvider } from "effect/config"
-
 export const magnetFromHash = (hash: string) =>
   `magnet:?xt=urn:btih:${hash}&${trackers}`
 
@@ -40,9 +38,3 @@ export const qualityFromTitle = (title: string) => {
   }
   return match[0]
 }
-
-export const configProviderNested = (prefix: string) =>
-  ConfigProvider.fromEnv().pipe(
-    ConfigProvider.nested(prefix),
-    ConfigProvider.constantCase,
-  )
