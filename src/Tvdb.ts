@@ -11,10 +11,7 @@ import { PersistenceLayer } from "./Persistence.js"
 
 export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
   make: Effect.gen(function* () {
-    const apiKey = yield* Config.schema(
-      Schema.Redacted(Schema.String),
-      "TVDB_API_KEY",
-    )
+    const apiKey = yield* Config.redacted("TVDB_API_KEY")
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4"),
@@ -40,7 +37,6 @@ export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
           }),
         ),
       ),
-      Effect.scoped,
     )
 
     const clientWithToken = client.pipe(
@@ -59,7 +55,6 @@ export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
       lookup: ({ id }: TvdbLookup) =>
         clientWithToken.get(`/episodes/${id}`).pipe(
           Effect.flatMap(Episode.decodeResponse),
-          Effect.scoped,
           Effect.orDie,
           Effect.map((_) => _.data),
           Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),

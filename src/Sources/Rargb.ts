@@ -63,7 +63,6 @@ export const SourceRargbLive = Effect.gen(function* () {
           },
         }),
         Effect.flatMap((r) => r.text),
-        Effect.scoped,
         Effect.map(parseResults),
         Effect.orDie,
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
