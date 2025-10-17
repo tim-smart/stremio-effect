@@ -5,16 +5,26 @@ import {
   HttpRouter,
   HttpServerResponse,
 } from "effect/unstable/http"
-import { Config, Effect, flow, Layer, pipe, Schedule } from "effect"
+import {
+  Config,
+  DateTime,
+  Effect,
+  flow,
+  identity,
+  Layer,
+  pipe,
+  Schedule,
+} from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
 import { Array } from "effect/collections"
-import { Option, Order } from "effect/data"
+import { Filter, Option, Order } from "effect/data"
 import { Schema } from "effect/schema"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
+import { Stream } from "effect/stream"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
@@ -35,6 +45,9 @@ export const RealDebridLayer = Effect.gen(function* () {
       times: 5,
       schedule: Schedule.exponential(100),
     }),
+    HttpClient.transformResponse(
+      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+    ),
   )
 
   const user = yield* client.get("/user").pipe(
@@ -71,6 +84,38 @@ export const RealDebridLayer = Effect.gen(function* () {
           Schedule.both(Schedule.during("5 minutes")),
         ),
       }),
+    )
+
+  const listTorrentsReq = HttpClientRequest.get("/torrents", {
+    urlParams: { limit: 100 },
+  })
+  const listTorrentsOffset = (offset: number) =>
+    listTorrentsReq.pipe(
+      offset === 0
+        ? identity
+        : HttpClientRequest.setUrlParam("offset", String(offset)),
+      client.execute,
+      Effect.flatMap(HttpClientResponse.schemaJson(TorrentListItem.Response)),
+    )
+
+  const listTorrents = Stream.paginate(0, (offset) =>
+    listTorrentsOffset(offset).pipe(
+      Effect.map(({ body, headers }) => {
+        const nextOffset = offset + body.length
+        return [
+          body,
+          nextOffset < headers["x-total-count"]
+            ? Option.some(nextOffset)
+            : Option.none<number>(),
+        ]
+      }),
+    ),
+  )
+
+  const removeTorrent = (id: string) =>
+    HttpClientRequest.del(`/torrents/delete/${id}`).pipe(
+      client.execute,
+      Effect.asVoid,
     )
 
   const selectFiles = (id: string, files: ReadonlyArray<string>) =>
@@ -179,6 +224,26 @@ export const RealDebridLayer = Effect.gen(function* () {
       }),
     ),
   )
+
+  // Clean up old torrents periodically
+  yield* Effect.gen(function* () {
+    const now = yield* DateTime.now
+    const yesterday = DateTime.subtract(now, { days: 1 })
+
+    yield* listTorrents.pipe(
+      Stream.filter(
+        Filter.fromPredicate((t) => DateTime.lessThan(t.added, yesterday)),
+      ),
+      Stream.collect,
+      Stream.flattenIterable,
+      Stream.tap((t) => removeTorrent(t.id), { concurrency: 5 }),
+      Stream.runDrain,
+    )
+  }).pipe(
+    Effect.catchCause(Effect.logWarning),
+    Effect.repeat(Schedule.spaced("6 hours")),
+    Effect.fork,
+  )
 }).pipe(
   Effect.annotateLogs({
     service: "RealDebrid",
@@ -193,6 +258,19 @@ const AddMagnetResponse = Schema.Struct({
 })
 const decodeAddMagnetResponse =
   HttpClientResponse.schemaBodyJson(AddMagnetResponse)
+
+class TorrentListItem extends Schema.Class<TorrentListItem>("TorrentListItem")({
+  id: Schema.String,
+  added: Schema.DateTimeUtcFromString,
+}) {
+  static Array = Schema.Array(TorrentListItem)
+  static Response = Schema.Struct({
+    headers: Schema.Struct({
+      "x-total-count": Schema.FiniteFromString,
+    }),
+    body: TorrentListItem.Array,
+  })
+}
 
 class TorrentInfo extends Schema.Class<TorrentInfo>("TorrentInfo")({
   links: Schema.Array(Schema.String),
