@@ -11,7 +11,7 @@ export const empty = (): QualityGroup => ({
   "480p": [],
 })
 
-export const unsafeAdd = (
+export const addUnsafe = (
   self: QualityGroup,
   stream: SourceStream,
 ): QualityGroup => {

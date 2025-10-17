@@ -173,7 +173,7 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
         ),
         // group by quality and return
         Stream.map((_) => _.result),
-        Stream.scan(QualityGroup.empty(), QualityGroup.unsafeAdd),
+        Stream.scan(QualityGroup.empty(), QualityGroup.addUnsafe),
         Stream.takeUntil(QualityGroup.hasEnough),
         Stream.runLast,
         Effect.map(
@@ -193,7 +193,7 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
         Effect.withSpan("Sources.streamsFromSeason", {
           attributes: { title: season.title, infoHash: season.infoHash },
         }),
-        Stream.fromArrayEffect,
+        Stream.fromIterableEffect,
         Stream.ignoreCause,
       )
 
