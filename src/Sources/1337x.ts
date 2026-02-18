@@ -1,6 +1,15 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import { Effect, Layer, Match, pipe, Schedule, Schema, Stream } from "effect"
+import {
+  Effect,
+  flow,
+  Layer,
+  Match,
+  pipe,
+  Schedule,
+  Schema,
+  Stream,
+} from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
@@ -11,7 +20,15 @@ import { PersistenceLayer } from "../Persistence.js"
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
-    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://1337x.to")),
+    HttpClient.mapRequest(
+      flow(
+        HttpClientRequest.prependUrl("https://1337x.to"),
+        HttpClientRequest.setHeader(
+          "User-Agent",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36",
+        ),
+      ),
+    ),
     HttpClient.retryTransient({
       times: 5,
       schedule: Schedule.spaced(5000),
