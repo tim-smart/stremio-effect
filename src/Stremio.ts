@@ -1,4 +1,15 @@
-import { Config, Effect, Layer, Match, pipe, ServiceMap } from "effect"
+import {
+  Config,
+  Data,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  pipe,
+  Redacted,
+  Schema,
+  ServiceMap,
+} from "effect"
 import {
   HttpRouter,
   HttpServerRequest,
@@ -6,10 +17,8 @@ import {
 } from "effect/unstable/http"
 import type * as Stremio from "stremio-addon-sdk"
 import { Sources } from "./Sources.js"
-import { ExtractTag } from "effect/types/Types"
 import { Cinemeta } from "./Cinemeta.js"
-import { Data, Option, Redacted } from "effect/data"
-import { Schema } from "effect/schema"
+import { ExtractTag } from "effect/Types"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest

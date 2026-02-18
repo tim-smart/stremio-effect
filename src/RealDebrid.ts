@@ -6,25 +6,26 @@ import {
   HttpServerResponse,
 } from "effect/unstable/http"
 import {
+  Array,
   Config,
   DateTime,
   Effect,
   flow,
   identity,
   Layer,
+  Option,
+  Order,
   pipe,
   Schedule,
+  Schema,
+  Stream,
 } from "effect"
 import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
 import { Sources } from "./Sources.js"
 import { StremioRouter } from "./Stremio.js"
 import { magnetFromHash } from "./Utils.js"
-import { Array } from "effect/collections"
-import { Filter, Option, Order } from "effect/data"
-import { Schema } from "effect/schema"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
-import { Stream } from "effect/stream"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
@@ -231,9 +232,7 @@ export const RealDebridLayer = Effect.gen(function* () {
     const yesterday = DateTime.subtract(now, { days: 1 })
 
     yield* listTorrents.pipe(
-      Stream.filter(
-        Filter.fromPredicate((t) => DateTime.lessThan(t.added, yesterday)),
-      ),
+      Stream.filter((t) => DateTime.isLessThan(t.added, yesterday)),
       Stream.collect,
       Stream.flattenIterable,
       Stream.tap((t) => removeTorrent(t.id), { concurrency: 5 }),
@@ -242,7 +241,7 @@ export const RealDebridLayer = Effect.gen(function* () {
   }).pipe(
     Effect.catchCause(Effect.logWarning),
     Effect.repeat(Schedule.spaced("6 hours")),
-    Effect.fork,
+    Effect.forkChild,
   )
 }).pipe(
   Effect.annotateLogs({
@@ -292,6 +291,6 @@ const decodeUnrestrictLinkResponse = HttpClientResponse.schemaBodyJson(
   UnrestrictLinkResponse,
 )
 
-const FileSizeOrder = Order.struct({
-  bytes: Order.number,
+const FileSizeOrder = Order.Struct({
+  bytes: Order.Number,
 })

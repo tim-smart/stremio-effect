@@ -1,4 +1,16 @@
-import { Effect, Layer, pipe, ServiceMap } from "effect"
+import {
+  Effect,
+  Equal,
+  Filter,
+  Hash,
+  Layer,
+  Option,
+  pipe,
+  Result,
+  Schema,
+  ServiceMap,
+  Stream,
+} from "effect"
 import { Cinemeta } from "./Cinemeta.js"
 import * as QualityGroup from "./Domain/QualityGroup.js"
 import {
@@ -17,12 +29,8 @@ import {
 } from "./Domain/VideoQuery.js"
 import { StreamRequest, streamRequestId } from "./Stremio.js"
 import { TorrentMeta } from "./TorrentMeta.js"
-import { Stream } from "effect/stream"
-import { Filter, Option } from "effect/data"
-import { Equal, Hash } from "effect/interfaces"
-import { Array, Iterable } from "effect/collections"
+import { Array, Iterable } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { Schema } from "effect/schema"
 import { PersistenceLayer } from "./Persistence.js"
 
 export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
@@ -141,20 +149,18 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
             )
           : Stream.filter((item) =>
               item.sourceResult._tag === "SourceStream"
-                ? { ...item, result: item.sourceResult }
-                : Filter.fail(null),
+                ? Result.succeed({ ...item, result: item.sourceResult })
+                : Result.fail(null),
             ),
         // filter out non matches
-        Stream.filter(
-          Filter.fromPredicate(({ nonSeasonQuery, result }) => {
-            if (result.verified) {
-              return true
-            }
-            return nonSeasonQuery.titleMatcher._tag === "Some"
-              ? nonSeasonQuery.titleMatcher.value(result.title)
-              : true
-          }),
-        ),
+        Stream.filter(({ nonSeasonQuery, result }) => {
+          if (result.verified) {
+            return true
+          }
+          return nonSeasonQuery.titleMatcher._tag === "Some"
+            ? nonSeasonQuery.titleMatcher.value(result.title)
+            : true
+        }),
         // only keep unique results
         Stream.chunks,
         Stream.mapAccum(

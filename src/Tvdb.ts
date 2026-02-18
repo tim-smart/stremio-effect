@@ -3,9 +3,16 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Config, Effect, Layer, Schedule, ServiceMap } from "effect"
-import { Schema as S, Schema } from "effect/schema"
-import { Redacted } from "effect/data"
+import {
+  Config,
+  Effect,
+  Layer,
+  Redacted,
+  Schedule,
+  Schema,
+  Schema as S,
+  ServiceMap,
+} from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 

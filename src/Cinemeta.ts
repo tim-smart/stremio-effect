@@ -12,9 +12,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Data, Option } from "effect/data"
-import { Schema as S } from "effect/schema"
-import { Array } from "effect/collections"
+import { Array, Data, Option, Schema as S } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 

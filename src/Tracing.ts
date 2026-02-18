@@ -1,8 +1,6 @@
-import { OtlpTracer } from "effect/unstable/observability"
+import { OtlpSerialization, OtlpTracer } from "effect/unstable/observability"
 import { NodeHttpClient } from "@effect/platform-node"
-import { Config, Effect, Layer } from "effect"
-import { Redacted } from "effect/data"
-import { Schema } from "effect/schema"
+import { Config, Effect, Layer, Redacted, Schema } from "effect"
 
 export const TracingLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -43,4 +41,4 @@ export const TracingLayer = Layer.unwrap(
       headers,
     })
   }),
-).pipe(Layer.provide(NodeHttpClient.layerUndici))
+).pipe(Layer.provide([NodeHttpClient.layerUndici, OtlpSerialization.layerJson]))

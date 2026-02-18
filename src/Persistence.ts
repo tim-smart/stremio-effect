@@ -1,7 +1,7 @@
 import { KeyValueStore, Persistence } from "effect/unstable/persistence"
-import { NodePersistence, NodeServices } from "@effect/platform-node"
+import { NodeRedis, NodeServices } from "@effect/platform-node"
 import { Config, Effect, Layer } from "effect"
-import { Option } from "effect/data"
+import { Option } from "effect"
 
 export const PersistenceLayer = Layer.unwrap(
   Effect.gen(function* () {
@@ -11,10 +11,9 @@ export const PersistenceLayer = Layer.unwrap(
     }).pipe(Config.option)
 
     if (Option.isSome(redis)) {
-      return NodePersistence.layerRedis({
-        host: redis.value.host,
-        port: redis.value.port,
-      })
+      return Persistence.layerRedis.pipe(
+        Layer.provide(NodeRedis.layer(redis.value)),
+      )
     }
 
     return Persistence.layerKvs.pipe(

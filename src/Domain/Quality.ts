@@ -1,4 +1,4 @@
-import { Order as Order_ } from "effect/data"
+import { Order as Order_ } from "effect"
 
 const priorities = [
   ["3D", 0],

@@ -1,12 +1,10 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
-import { Effect, Layer, Match, pipe, Schedule } from "effect"
+import { Effect, Layer, Match, pipe, Schedule, Schema, Stream } from "effect"
 import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
 import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { Schema } from "effect/schema"
-import { Stream } from "effect/stream"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "../Persistence.js"
 

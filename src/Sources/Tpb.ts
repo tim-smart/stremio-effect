@@ -3,7 +3,17 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Effect, Layer, Match, pipe, Schedule } from "effect"
+import {
+  Effect,
+  Layer,
+  Match,
+  pipe,
+  Schedule,
+  Schema as S,
+  Stream,
+  Array,
+  Option,
+} from "effect"
 import {
   SourceSeason,
   SourceStream,
@@ -12,10 +22,6 @@ import {
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { magnetFromHash, qualityFromTitle } from "../Utils.js"
-import { Schema as S } from "effect/schema"
-import { Option } from "effect/data"
-import { Array } from "effect/collections"
-import { Stream } from "effect/stream"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "../Persistence.js"
 

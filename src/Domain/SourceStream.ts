@@ -1,8 +1,7 @@
 import type * as Stremio from "stremio-addon-sdk"
 import { bytesToSize, qualityFromTitle } from "../Utils.js"
 import * as Quality from "./Quality.js"
-import { Schema } from "effect/schema"
-import { Data, Order } from "effect/data"
+import { Schema, Data, Order } from "effect"
 
 export class SourceStream extends Schema.Class<SourceStream>("SourceStream")({
   _tag: Schema.tag("SourceStream"),
@@ -20,9 +19,9 @@ export class SourceStream extends Schema.Class<SourceStream>("SourceStream")({
 }) {
   static Array = Schema.Array(this)
 
-  static Order = Order.struct({
+  static Order = Order.Struct({
     quality: Quality.Order,
-    seeds: Order.reverse(Order.number),
+    seeds: Order.flip(Order.Number),
   })
 
   get sizeFormatted() {

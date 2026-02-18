@@ -5,9 +5,8 @@ import {
 } from "./Utils.js"
 import { SourceStreamWithFile } from "./Domain/SourceStream.js"
 import ParseTorrent from "parse-torrent"
-import { Effect, Fiber, Layer, pipe, ServiceMap } from "effect"
+import { Effect, Fiber, Layer, pipe, Schema, ServiceMap } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { Schema } from "effect/schema"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.js"
 

@@ -3,15 +3,21 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/unstable/http"
-import { Effect, Layer, Match, pipe, Schedule } from "effect"
+import {
+  Effect,
+  Layer,
+  Match,
+  pipe,
+  Schedule,
+  Schema as S,
+  Stream,
+  Option,
+} from "effect"
 import { SourceStream } from "../Domain/SourceStream.js"
 import { VideoQuery } from "../Domain/VideoQuery.js"
 import { Sources } from "../Sources.js"
 import { qualityFromTitle } from "../Utils.js"
 import { TorrentMeta } from "../TorrentMeta.js"
-import { Schema as S } from "effect/schema"
-import { Filter, Option } from "effect/data"
-import { Stream } from "effect/stream"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "../Persistence.js"
 
@@ -97,10 +103,8 @@ export const SourceEztvLive = Effect.gen(function* () {
     list: Match.type<VideoQuery>().pipe(
       Match.tag("ImdbSeasonQuery", ({ imdbId, season }) =>
         stream(imdbId).pipe(
-          Stream.filter((torrent) =>
-            torrent.season === season && torrent.episode === 0
-              ? torrent
-              : Filter.fail(torrent),
+          Stream.filter(
+            (torrent) => torrent.season === season && torrent.episode === 0,
           ),
           Stream.flatMap((torrent) => seasonSources(torrent)),
           Stream.catchCause((cause) =>
@@ -120,10 +124,9 @@ export const SourceEztvLive = Effect.gen(function* () {
       ),
       Match.tag("ImdbSeriesQuery", ({ imdbId, season, episode }) =>
         stream(imdbId).pipe(
-          Stream.filter((torrent) =>
-            torrent.season === season && torrent.episode === episode
-              ? torrent
-              : Filter.fail(torrent),
+          Stream.filter(
+            (torrent) =>
+              torrent.season === season && torrent.episode === episode,
           ),
           Stream.map((torrent) => torrent.asStream),
           Stream.catchCause((cause) =>

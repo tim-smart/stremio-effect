@@ -1,6 +1,5 @@
-import { Exit } from "effect"
-import { Data, Option, Predicate } from "effect/data"
-import { PrimaryKey } from "effect/interfaces"
+import { Exit, PrimaryKey } from "effect"
+import { Data, Option, Predicate } from "effect"
 
 export class SeriesQuery extends Data.TaggedClass("SeriesQuery")<{
   readonly title: string
