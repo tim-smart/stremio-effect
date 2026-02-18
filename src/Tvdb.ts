@@ -19,6 +19,9 @@ import { PersistenceLayer } from "./Persistence.js"
 export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
   make: Effect.gen(function* () {
     const apiKey = yield* Config.redacted("TVDB_API_KEY")
+
+    yield* Effect.log("Creating Tvdb client", Redacted.value(apiKey))
+
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
         HttpClientRequest.prependUrl("https://api4.thetvdb.com/v4"),
