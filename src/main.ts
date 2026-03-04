@@ -16,7 +16,7 @@ Net.setDefaultAutoSelectFamily(false)
 const MainLive = AddonLive.pipe(
   Layer.provide([
     NodeHttpServer.layerConfig(createServer, {
-      port: Config.port("PORT").pipe(Config.withDefault(() => 8000)),
+      port: Config.port("PORT").pipe(Config.withDefault(8000)),
     }),
     NodeHttpClient.layerUndici,
   ]),

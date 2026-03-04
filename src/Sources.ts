@@ -1,7 +1,6 @@
 import {
   Effect,
   Equal,
-  Filter,
   Hash,
   Layer,
   Option,
@@ -124,21 +123,19 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
           { concurrency: "unbounded" },
         ),
         // filter out non matches
-        Stream.filter(
-          Filter.fromPredicate(({ sourceResult, nonSeasonQuery }) => {
-            if (
-              sourceResult.quality === "480p" ||
-              sourceResult.quality === "N/A"
-            ) {
-              return false
-            } else if (sourceResult.verified) {
-              return true
-            }
-            return nonSeasonQuery.titleMatcher._tag === "Some"
-              ? nonSeasonQuery.titleMatcher.value(sourceResult.title)
-              : true
-          }),
-        ),
+        Stream.filter(({ sourceResult, nonSeasonQuery }) => {
+          if (
+            sourceResult.quality === "480p" ||
+            sourceResult.quality === "N/A"
+          ) {
+            return false
+          } else if (sourceResult.verified) {
+            return true
+          }
+          return nonSeasonQuery.titleMatcher._tag === "Some"
+            ? nonSeasonQuery.titleMatcher.value(sourceResult.title)
+            : true
+        }),
         // embellish the results
         embellisher
           ? Stream.bindEffect(
@@ -147,7 +144,7 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
                 embellisher.transform(sourceResult, baseUrl),
               { concurrency: "unbounded" },
             )
-          : Stream.filter((item) =>
+          : Stream.filterMap((item) =>
               item.sourceResult._tag === "SourceStream"
                 ? Result.succeed({ ...item, result: item.sourceResult })
                 : Result.fail(null),

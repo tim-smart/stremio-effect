@@ -114,7 +114,7 @@ export const RealDebridLayer = Effect.gen(function* () {
   )
 
   const removeTorrent = (id: string) =>
-    HttpClientRequest.del(`/torrents/delete/${id}`).pipe(
+    HttpClientRequest.delete(`/torrents/delete/${id}`).pipe(
       client.execute,
       Effect.asVoid,
     )

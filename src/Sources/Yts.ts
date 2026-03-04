@@ -23,7 +23,7 @@ export const SourceYtsLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.filterStatusOk,
     HttpClient.mapRequest(
-      HttpClientRequest.prependUrl("https://yts.mx/api/v2"),
+      HttpClientRequest.prependUrl("https://movies-api.accel.li/api/v2"),
     ),
     HttpClient.retryTransient({
       times: 5,

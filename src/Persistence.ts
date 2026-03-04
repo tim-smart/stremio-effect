@@ -7,7 +7,7 @@ export const PersistenceLayer = Layer.unwrap(
   Effect.gen(function* () {
     const redis = yield* Config.all({
       host: Config.string("REDIS_HOST"),
-      port: Config.int("REDIS_PORT").pipe(Config.withDefault(() => 6379)),
+      port: Config.int("REDIS_PORT").pipe(Config.withDefault(6379)),
     }).pipe(Config.option)
 
     if (Option.isSome(redis)) {

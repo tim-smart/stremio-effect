@@ -1,21 +1,18 @@
 import { OtlpSerialization, OtlpTracer } from "effect/unstable/observability"
 import { NodeHttpClient } from "@effect/platform-node"
-import { Config, Effect, Layer, Redacted, Schema } from "effect"
+import { Config, Effect, Layer, Redacted } from "effect"
 
 export const TracingLayer = Layer.unwrap(
   Effect.gen(function* () {
-    const apiKey = yield* Config.schema(
-      Schema.Redacted(Schema.String).pipe(Schema.UndefinedOr),
-      "HONEYCOMB_API_KEY",
+    const apiKey = yield* Config.redacted("HONEYCOMB_API_KEY").pipe(
+      Config.withDefault(undefined),
     )
-    const dataset = yield* Config.schema(
-      Schema.String.pipe(Schema.withDecodingDefault(() => "stremio-effect")),
-      "HONEYCOMB_DATASET",
+    const dataset = yield* Config.string("HONEYCOMB_DATASET").pipe(
+      Config.withDefault("stremio-effect"),
     )
     if (apiKey === undefined) {
-      const endpoint = yield* Config.schema(
-        Schema.UndefinedOr(Schema.String),
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
+      const endpoint = yield* Config.string("OTEL_EXPORTER_OTLP_ENDPOINT").pipe(
+        Config.withDefault(undefined),
       )
       if (!endpoint) {
         return Layer.empty
