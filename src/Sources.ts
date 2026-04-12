@@ -7,16 +7,16 @@ import {
   pipe,
   Result,
   Schema,
-  ServiceMap,
+  Context,
   Stream,
 } from "effect"
-import { Cinemeta } from "./Cinemeta.js"
-import * as QualityGroup from "./Domain/QualityGroup.js"
+import { Cinemeta } from "./Cinemeta.ts"
+import * as QualityGroup from "./Domain/QualityGroup.ts"
 import {
   SourceSeason,
   SourceStream,
   SourceStreamWithFile,
-} from "./Domain/SourceStream.js"
+} from "./Domain/SourceStream.ts"
 import {
   ChannelQuery,
   ImdbMovieQuery,
@@ -24,15 +24,15 @@ import {
   ImdbSeriesQuery,
   ImdbTvQuery,
   nonSeasonQuery,
-  VideoQuery,
-} from "./Domain/VideoQuery.js"
-import { StreamRequest, streamRequestId } from "./Stremio.js"
-import { TorrentMeta } from "./TorrentMeta.js"
+  type VideoQuery,
+} from "./Domain/VideoQuery.ts"
+import { StreamRequest, streamRequestId } from "./Stremio.ts"
+import { TorrentMeta } from "./TorrentMeta.ts"
 import { Array, Iterable } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "./Persistence.js"
+import { PersistenceLayer } from "./Persistence.ts"
 
-export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
+export class Sources extends Context.Service<Sources>()("stremio/Sources", {
   make: Effect.gen(function* () {
     const sources = new Set<Source>()
     const embellishers = new Set<Embellisher>()
@@ -119,6 +119,7 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
                     : streamsFromSeason(result),
                 { concurrency: "unbounded" },
               ),
+              Stream.catchCause(() => Stream.empty),
             ),
           { concurrency: "unbounded" },
         ),
@@ -217,16 +218,17 @@ export class Sources extends ServiceMap.Service<Sources>()("stremio/Sources", {
         return Hash.hash(this.request)
       }
     }
-    const listCache = yield* PersistedCache.make({
-      storeId: "Sources.listCache",
-      lookup: (request: ListRequest) =>
-        listUncached(request.request, request.baseUrl),
-      timeToLive: (exit) => {
-        if (exit._tag === "Failure") return "1 minute"
-        return exit.value.length > 5 ? "3 days" : "6 hours"
+    const listCache = yield* PersistedCache.make(
+      (request: ListRequest) => listUncached(request.request, request.baseUrl),
+      {
+        storeId: "Sources.listCache",
+        timeToLive: (exit) => {
+          if (exit._tag === "Failure") return "1 minute"
+          return exit.value.length > 5 ? "3 days" : "6 hours"
+        },
+        inMemoryCapacity: 16,
       },
-      inMemoryCapacity: 16,
-    })
+    )
     const list = (request: StreamRequest, baseUrl: URL) =>
       listCache.get(new ListRequest({ request, baseUrl }))
 

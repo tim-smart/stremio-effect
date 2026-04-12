@@ -11,12 +11,12 @@ import {
   Schedule,
   Schema,
   Schema as S,
-  ServiceMap,
+  Context,
 } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "./Persistence.js"
+import { PersistenceLayer } from "./Persistence.ts"
 
-export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
+export class Tvdb extends Context.Service<Tvdb>()("Tvdb", {
   make: Effect.gen(function* () {
     const apiKey = yield* Config.redacted("TVDB_API_KEY")
     const client = (yield* HttpClient.HttpClient).pipe(
@@ -57,18 +57,20 @@ export class Tvdb extends ServiceMap.Service<Tvdb>()("Tvdb", {
       success: EpisodeData,
     }) {}
 
-    const lookupEpisodeCache = yield* PersistedCache.make({
-      storeId: "Tvdb.lookupEpisode",
-      lookup: ({ id }: TvdbLookup) =>
+    const lookupEpisodeCache = yield* PersistedCache.make(
+      ({ id }: TvdbLookup) =>
         clientWithToken.get(`/episodes/${id}`).pipe(
           Effect.flatMap(Episode.decodeResponse),
           Effect.orDie,
           Effect.map((_) => _.data),
           Effect.withSpan("Tvdb.lookupEpisode", { attributes: { id } }),
         ),
-      timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),
-      inMemoryCapacity: 16,
-    })
+      {
+        storeId: "Tvdb.lookupEpisode",
+        timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "1 hour"),
+        inMemoryCapacity: 16,
+      },
+    )
     const lookupEpisode = (id: number) =>
       lookupEpisodeCache.get(new TvdbLookup({ id }))
 

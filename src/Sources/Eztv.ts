@@ -13,13 +13,13 @@ import {
   Stream,
   Option,
 } from "effect"
-import { SourceStream } from "../Domain/SourceStream.js"
-import { VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { qualityFromTitle } from "../Utils.js"
-import { TorrentMeta } from "../TorrentMeta.js"
+import { SourceStream } from "../Domain/SourceStream.ts"
+import type { VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { qualityFromTitle } from "../Utils.ts"
+import { TorrentMeta } from "../TorrentMeta.ts"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "../Persistence.js"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const SourceEztvLive = Effect.gen(function* () {
   const torrentMeta = yield* TorrentMeta
@@ -55,15 +55,17 @@ export const SourceEztvLive = Effect.gen(function* () {
     success: GetTorrents,
   }) {}
 
-  const getPageCache = yield* PersistedCache.make({
-    storeId: "Eztv.pages",
-    lookup: ({ imdbId, page }: GetPage) => getPage(imdbId, page),
-    timeToLive: (exit) => {
-      if (exit._tag === "Failure") return "1 minute"
-      return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
+  const getPageCache = yield* PersistedCache.make(
+    ({ imdbId, page }: GetPage) => getPage(imdbId, page),
+    {
+      storeId: "Eztv.pages",
+      timeToLive: (exit) => {
+        if (exit._tag === "Failure") return "1 minute"
+        return exit.value.torrents.length > 0 ? "12 hours" : "3 hours"
+      },
+      inMemoryCapacity: 16,
     },
-    inMemoryCapacity: 16,
-  })
+  )
 
   const stream = (imdbId: string, cached = false) =>
     Stream.paginate(1, (page) =>

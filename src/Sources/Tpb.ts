@@ -13,21 +13,40 @@ import {
   Stream,
   Array,
   Option,
+  flow,
 } from "effect"
 import {
   SourceSeason,
   SourceStream,
   SourceStreamWithFile,
-} from "../Domain/SourceStream.js"
-import { VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { magnetFromHash, qualityFromTitle } from "../Utils.js"
-import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "../Persistence.js"
+} from "../Domain/SourceStream.ts"
+import type { VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { magnetFromHash, qualityFromTitle } from "../Utils.ts"
+import {
+  Persistable,
+  PersistedCache,
+  RateLimiter,
+} from "effect/unstable/persistence"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const SourceTpbLive = Effect.gen(function* () {
   const sources = yield* Sources
+  const limiter = yield* RateLimiter.RateLimiter
   const defaultClient = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.tap(
+      Effect.fn(function* (r) {
+        if (r.status !== 429) return
+        yield* Effect.log(r.headers)
+      }),
+    ),
+    HttpClient.withRateLimiter({
+      limiter,
+      key: "Tpb",
+      disableResponseInspection: true,
+      window: { seconds: 60 },
+      limit: 10,
+    }),
     HttpClient.filterStatusOk,
     HttpClient.retryTransient({
       times: 5,
@@ -35,7 +54,16 @@ export const SourceTpbLive = Effect.gen(function* () {
     }),
   )
   const client = defaultClient.pipe(
-    HttpClient.mapRequest(HttpClientRequest.prependUrl("https://apibay.org")),
+    HttpClient.mapRequest(
+      flow(
+        HttpClientRequest.prependUrl("https://apibay.org"),
+        HttpClientRequest.setHeaders({
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+          "Cache-Control": "max-age=0",
+        }),
+      ),
+    ),
   )
 
   class SearchRequest extends Persistable.Class<{
@@ -44,10 +72,17 @@ export const SourceTpbLive = Effect.gen(function* () {
     primaryKey: (_) => _.imdbId,
     success: SearchResult.Array,
   }) {}
-  const search = yield* PersistedCache.make({
-    storeId: "Tpb.search",
-    lookup: ({ imdbId }: SearchRequest) =>
+  const search = yield* PersistedCache.make(
+    ({ imdbId }: SearchRequest) =>
       client.get("/q.php", { urlParams: { q: imdbId } }).pipe(
+        Effect.tapErrorTag(
+          "HttpClientError",
+          Effect.fn(function* (error) {
+            if (error.reason._tag !== "StatusCodeError") return
+            if (error.response!.status !== 429) return
+            yield* Effect.log(error.response?.headers)
+          }),
+        ),
         Effect.flatMap(SearchResult.decodeResponse),
         Effect.orDie,
         Effect.map((results) => (results[0].id === "0" ? [] : results)),
@@ -55,12 +90,15 @@ export const SourceTpbLive = Effect.gen(function* () {
           attributes: { imdbId },
         }),
       ),
-    timeToLive: (exit) => {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 0 ? "3 days" : "6 hours"
+    {
+      storeId: "Tpb.search",
+      timeToLive: (exit) => {
+        if (exit._tag === "Failure") return "5 minutes"
+        return exit.value.length > 0 ? "3 days" : "6 hours"
+      },
+      inMemoryCapacity: 8,
     },
-    inMemoryCapacity: 8,
-  })
+  )
 
   const files = (id: string) =>
     client.get("/f.php", { urlParams: { id } }).pipe(
@@ -90,22 +128,20 @@ export const SourceTpbLive = Effect.gen(function* () {
                     Array.match(files, {
                       onEmpty: () => [result.asSeason],
                       onNonEmpty: (files) =>
-                        pipe(
-                          Array.map(
-                            files,
-                            (file, index) =>
-                              new SourceStreamWithFile({
-                                source: "TPB",
-                                title: file.name[0],
-                                infoHash: result.info_hash,
-                                magnetUri: magnetFromHash(result.info_hash),
-                                quality: qualityFromTitle(file.name[0]),
-                                seeds: result.seeders,
-                                peers: result.leechers,
-                                sizeBytes: file.size[0],
-                                fileNumber: index,
-                              }),
-                          ),
+                        Array.map(
+                          files,
+                          (file, index) =>
+                            new SourceStreamWithFile({
+                              source: "TPB",
+                              title: file.name[0],
+                              infoHash: result.info_hash,
+                              magnetUri: magnetFromHash(result.info_hash),
+                              quality: qualityFromTitle(file.name[0]),
+                              seeds: result.seeders,
+                              peers: result.leechers,
+                              sizeBytes: file.size[0],
+                              fileNumber: index,
+                            }),
                         ),
                     }),
                 ),
@@ -136,7 +172,14 @@ export const SourceTpbLive = Effect.gen(function* () {
       Match.orElse(() => Stream.empty),
     ),
   })
-}).pipe(Layer.effectDiscard, Layer.provide([Sources.layer, PersistenceLayer]))
+}).pipe(
+  Layer.effectDiscard,
+  Layer.provide([
+    Sources.layer,
+    PersistenceLayer,
+    RateLimiter.layer.pipe(Layer.provide(RateLimiter.layerStoreMemory)),
+  ]),
+)
 
 // schemas
 

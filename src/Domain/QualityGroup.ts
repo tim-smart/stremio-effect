@@ -1,4 +1,4 @@
-import { SourceStream } from "./SourceStream.js"
+import { SourceStream } from "./SourceStream.ts"
 
 export interface QualityGroup extends Record<string, Array<SourceStream>> {}
 

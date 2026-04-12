@@ -1,12 +1,12 @@
-import { Effect, Layer, Schedule, ServiceMap } from "effect"
+import { Effect, Layer, Schedule, Context, pipe } from "effect"
 import {
   AbsoluteSeriesQuery,
   ImdbAbsoluteSeriesQuery,
   MovieQuery,
   SeasonQuery,
   SeriesQuery,
-} from "./Domain/VideoQuery.js"
-import { EpisodeData, Tvdb } from "./Tvdb.js"
+} from "./Domain/VideoQuery.ts"
+import { EpisodeData, Tvdb } from "./Tvdb.ts"
 import {
   HttpClient,
   HttpClientRequest,
@@ -14,9 +14,9 @@ import {
 } from "effect/unstable/http"
 import { Array, Data, Option, Schema as S } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "./Persistence.js"
+import { PersistenceLayer } from "./Persistence.ts"
 
-export class Cinemeta extends ServiceMap.Service<Cinemeta>()("Cinemeta", {
+export class Cinemeta extends Context.Service<Cinemeta>()("Cinemeta", {
   make: Effect.gen(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest(
@@ -37,18 +37,21 @@ export class Cinemeta extends ServiceMap.Service<Cinemeta>()("Cinemeta", {
       success: MovieMeta,
     }) {}
 
-    const lookupMovieCache = yield* PersistedCache.make({
-      storeId: "Cinemeta.movies",
-      lookup: ({ imdbId }: LookupMovie) =>
+    const lookupMovieCache = yield* PersistedCache.make(
+      ({ imdbId }: LookupMovie) =>
         client.get(`/movie/${imdbId}.json`).pipe(
           Effect.flatMap(Movie.decodeResponse),
           Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupMovie", { attributes: { imdbId } }),
         ),
-      inMemoryCapacity: 16,
-      timeToLive: (exit) => (exit._tag === "Success" ? "1 week" : "5 minutes"),
-    })
+      {
+        storeId: "Cinemeta.movies",
+        inMemoryCapacity: 16,
+        timeToLive: (exit) =>
+          exit._tag === "Success" ? "1 week" : "5 minutes",
+      },
+    )
     const lookupMovie = (imdbID: string) =>
       lookupMovieCache.get(new LookupMovie({ imdbId: imdbID }))
 
@@ -59,19 +62,21 @@ export class Cinemeta extends ServiceMap.Service<Cinemeta>()("Cinemeta", {
       success: SeriesMeta,
     }) {}
 
-    const lookupSeriesCache = yield* PersistedCache.make({
-      storeId: "Cinemeta.series",
-      lookup: ({ imdbId }: LookupSeries) =>
+    const lookupSeriesCache = yield* PersistedCache.make(
+      ({ imdbId }: LookupSeries) =>
         client.get(`/series/${imdbId}.json`).pipe(
           Effect.flatMap(Series.decodeResponse),
           Effect.map((_) => _.meta),
           Effect.orDie,
           Effect.withSpan("Cinemeta.lookupSeries", { attributes: { imdbId } }),
         ),
-      timeToLive: (exit) =>
-        exit._tag === "Success" ? "12 hours" : "5 minutes",
-      inMemoryCapacity: 16,
-    })
+      {
+        storeId: "Cinemeta.series",
+        timeToLive: (exit) =>
+          exit._tag === "Success" ? "12 hours" : "5 minutes",
+        inMemoryCapacity: 16,
+      },
+    )
     const lookupSeries = (imdbID: string) =>
       lookupSeriesCache.get(new LookupSeries({ imdbId: imdbID }))
 
@@ -102,14 +107,12 @@ export class Cinemeta extends ServiceMap.Service<Cinemeta>()("Cinemeta", {
             }),
           ]
         }
-        const info = yield* series
-          .findEpisode(season, episode)
-          .asEffect()
-          .pipe(
-            Effect.flatMap((_) => Effect.fromNullishOr(_.tvdb_id)),
-            Effect.flatMap(tvdb.lookupEpisode),
-            Effect.option,
-          )
+        const info = yield* pipe(
+          series.findEpisode(season, episode).asEffect(),
+          Effect.flatMap((_) => Effect.fromNullishOr(_.tvdb_id)),
+          Effect.flatMap(tvdb.lookupEpisode),
+          Effect.option,
+        )
         return [
           new AnimationEpisodeResult({
             series,

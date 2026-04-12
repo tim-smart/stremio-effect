@@ -1,11 +1,11 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
 import { Array, Effect, Layer, Match, pipe, Schedule, Stream } from "effect"
-import { SourceStream } from "../Domain/SourceStream.js"
-import { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
-import { PersistenceLayer } from "../Persistence.js"
+import { SourceStream } from "../Domain/SourceStream.ts"
+import type { AbsoluteSeriesQuery, VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { infoHashFromMagnet, qualityFromTitle } from "../Utils.ts"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const SourceNyaaLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(

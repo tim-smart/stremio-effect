@@ -10,12 +10,12 @@ import {
   Schema,
   Stream,
 } from "effect"
-import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
+import { SourceSeason, SourceStream } from "../Domain/SourceStream.ts"
+import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { infoHashFromMagnet, qualityFromTitle } from "../Utils.ts"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "../Persistence.js"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const Source1337xLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -71,9 +71,8 @@ export const Source1337xLive = Effect.gen(function* () {
     success: SearchResult.Array,
   }) {}
 
-  const search = yield* PersistedCache.make({
-    storeId: "1337x.search",
-    lookup: ({ query, category }: SearchRequest) =>
+  const search = yield* PersistedCache.make(
+    ({ query, category }: SearchRequest) =>
       pipe(
         client.get(
           `/sort-category-search/${encodeURIComponent(query)}/${category}/seeders/desc/1/`,
@@ -85,12 +84,15 @@ export const Source1337xLive = Effect.gen(function* () {
           attributes: { query, category },
         }),
       ),
-    timeToLive: (exit) => {
-      if (exit._tag === "Failure") return "1 minute"
-      return exit.value.length > 5 ? "3 days" : "3 hours"
+    {
+      storeId: "1337x.search",
+      timeToLive: (exit) => {
+        if (exit._tag === "Failure") return "1 minute"
+        return exit.value.length > 5 ? "3 days" : "3 hours"
+      },
+      inMemoryCapacity: 8,
     },
-    inMemoryCapacity: 8,
-  })
+  )
 
   const searchStream = (request: TitleVideoQuery) =>
     pipe(

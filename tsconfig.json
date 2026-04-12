@@ -5,6 +5,8 @@
     "skipLibCheck": true,
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "allowSyntheticDefaultImports": true,
     "noErrorTruncation": true,
     "lib": ["ESNext", "DOM"],

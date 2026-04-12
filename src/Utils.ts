@@ -1,3 +1,5 @@
+import { Config } from "effect"
+
 export const magnetFromHash = (hash: string) =>
   `magnet:?xt=urn:btih:${hash}&${trackers}`
 
@@ -38,3 +40,8 @@ export const qualityFromTitle = (title: string) => {
   }
   return match[0]
 }
+
+export const isDev = Config.string("NODE_ENV").pipe(
+  Config.map((env) => env !== "production"),
+  Config.withDefault(true),
+)

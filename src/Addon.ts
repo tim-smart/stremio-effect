@@ -1,7 +1,7 @@
-import * as Stremio from "./Stremio.js"
+import * as Stremio from "./Stremio.ts"
 import { Layer } from "effect"
 import { HttpMiddleware, HttpRouter } from "effect/unstable/http"
-import { AllSourcesDebrid } from "./Sources/All.js"
+import { AllSourcesDebrid } from "./Sources/All.ts"
 
 export const AddonLive = Stremio.StremioManifest.addon({
   id: "co.timsmart.stremio.sources",

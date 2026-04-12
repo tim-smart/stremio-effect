@@ -12,11 +12,11 @@ import {
   Schema as S,
   Stream,
 } from "effect"
-import { SourceStream } from "../Domain/SourceStream.js"
-import { VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { magnetFromHash } from "../Utils.js"
-import { PersistenceLayer } from "../Persistence.js"
+import { SourceStream } from "../Domain/SourceStream.ts"
+import type { VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { magnetFromHash } from "../Utils.ts"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const SourceYtsLive = Effect.gen(function* () {
   const sources = yield* Sources

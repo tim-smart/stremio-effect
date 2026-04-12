@@ -8,7 +8,7 @@ import {
   pipe,
   Redacted,
   Schema,
-  ServiceMap,
+  Context,
 } from "effect"
 import {
   HttpRouter,
@@ -16,9 +16,9 @@ import {
   HttpServerResponse,
 } from "effect/unstable/http"
 import type * as Stremio from "stremio-addon-sdk"
-import { Sources } from "./Sources.js"
-import { Cinemeta } from "./Cinemeta.js"
-import { ExtractTag } from "effect/Types"
+import { Sources } from "./Sources.ts"
+import { Cinemeta } from "./Cinemeta.ts"
+import type { ExtractTag } from "effect/Types"
 
 export interface AddonConfig {
   readonly manifest: Stremio.Manifest
@@ -51,7 +51,7 @@ export const streamRequestId = StreamRequest.$match({
   Tv: ({ imdbId }) => `Tv:${imdbId}`,
 })
 
-export class StremioRouter extends ServiceMap.Service<
+export class StremioRouter extends Context.Service<
   StremioRouter,
   HttpRouter.HttpRouter
 >()("stremio/StremioRouter") {
@@ -110,9 +110,7 @@ const ApiRoutes = Effect.gen(function* () {
         )
         yield* Effect.log("StreamRequest", streamRequest)
         const url = baseUrl.pipe(
-          Option.orElse(() =>
-            Option.fromUndefinedOr(HttpServerRequest.toURL(request)),
-          ),
+          Option.orElse(() => HttpServerRequest.toURL(request)),
           Option.getOrElse(() => new URL("http://localhost:8000")),
           (url) => {
             url.pathname = Redacted.value(token)
@@ -169,7 +167,7 @@ const AllRoutes = Layer.mergeAll(ApiRoutes, HealthRoute).pipe(
   Layer.provide(HttpRouter.cors()),
 )
 
-export class StremioManifest extends ServiceMap.Service<
+export class StremioManifest extends Context.Service<
   StremioManifest,
   Stremio.Manifest
 >()("stremio/StremioManifest") {

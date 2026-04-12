@@ -20,12 +20,12 @@ import {
   Schema,
   Stream,
 } from "effect"
-import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.js"
-import { Sources } from "./Sources.js"
-import { StremioRouter } from "./Stremio.js"
-import { magnetFromHash } from "./Utils.js"
+import { SourceStream, SourceStreamWithFile } from "./Domain/SourceStream.ts"
+import { Sources } from "./Sources.ts"
+import { StremioRouter } from "./Stremio.ts"
+import { magnetFromHash } from "./Utils.ts"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "./Persistence.js"
+import { PersistenceLayer } from "./Persistence.ts"
 
 export const RealDebridLayer = Effect.gen(function* () {
   const sources = yield* Sources
@@ -145,10 +145,9 @@ export const RealDebridLayer = Effect.gen(function* () {
     success: UnrestrictLinkResponse,
   }) {}
 
-  const resolve = yield* PersistedCache.make<ResolveRequest, never>({
-    storeId: "RealDebrid.resolve",
-    lookup: Effect.fnUntraced(
-      function* (request) {
+  const resolve = yield* PersistedCache.make(
+    Effect.fnUntraced(
+      function* (request: ResolveRequest) {
         const torrent = yield* addMagnet(request.infoHash)
         if (request.file === "-1") {
           yield* selectLargestFile(torrent.id)
@@ -166,9 +165,12 @@ export const RealDebridLayer = Effect.gen(function* () {
           attributes: { request },
         }),
     ),
-    timeToLive: (exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
-    inMemoryCapacity: 16,
-  })
+    {
+      storeId: "RealDebrid.resolve",
+      timeToLive: (exit) => (exit._tag === "Success" ? "1 hour" : "5 minutes"),
+      inMemoryCapacity: 16,
+    },
+  )
 
   yield* sources.registerEmbellisher({
     transform: (stream, baseUrl) =>

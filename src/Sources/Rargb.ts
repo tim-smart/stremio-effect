@@ -1,12 +1,12 @@
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import * as Cheerio from "cheerio"
 import { Effect, Layer, Match, pipe, Schedule, Schema, Stream } from "effect"
-import { SourceSeason, SourceStream } from "../Domain/SourceStream.js"
-import { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.js"
-import { Sources } from "../Sources.js"
-import { infoHashFromMagnet, qualityFromTitle } from "../Utils.js"
+import { SourceSeason, SourceStream } from "../Domain/SourceStream.ts"
+import type { TitleVideoQuery, VideoQuery } from "../Domain/VideoQuery.ts"
+import { Sources } from "../Sources.ts"
+import { infoHashFromMagnet, qualityFromTitle } from "../Utils.ts"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
-import { PersistenceLayer } from "../Persistence.js"
+import { PersistenceLayer } from "../Persistence.ts"
 
 export const SourceRargbLive = Effect.gen(function* () {
   const client = (yield* HttpClient.HttpClient).pipe(
@@ -49,9 +49,8 @@ export const SourceRargbLive = Effect.gen(function* () {
     success: SearchResult.Array,
   }) {}
 
-  const search = yield* PersistedCache.make({
-    storeId: "Rarbg.search",
-    lookup: (request: SearchRequest) =>
+  const search = yield* PersistedCache.make(
+    (request: SearchRequest) =>
       pipe(
         client.get("/search/", {
           urlParams: {
@@ -65,12 +64,15 @@ export const SourceRargbLive = Effect.gen(function* () {
         Effect.orDie,
         Effect.withSpan("Source.Rarbg.search", { attributes: { ...request } }),
       ),
-    timeToLive: (exit) => {
-      if (exit._tag === "Failure") return "5 minutes"
-      return exit.value.length > 5 ? "3 days" : "3 hours"
+    {
+      storeId: "Rarbg.search",
+      timeToLive: (exit) => {
+        if (exit._tag === "Failure") return "5 minutes"
+        return exit.value.length > 5 ? "3 days" : "3 hours"
+      },
+      inMemoryCapacity: 8,
     },
-    inMemoryCapacity: 8,
-  })
+  )
 
   const searchStream = (request: TitleVideoQuery) =>
     pipe(
