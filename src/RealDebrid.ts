@@ -28,11 +28,12 @@ import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.ts"
 
 export const RealDebridLayer = Effect.gen(function* () {
-  const sources = yield* Sources
-  const apiKey = yield* Config.schema(
-    Schema.Redacted(Schema.String),
-    "REAL_DEBRID_API_KEY",
+  const apiKey = yield* Config.redacted("REAL_DEBRID_API_KEY").pipe(
+    Config.withDefault(undefined),
   )
+  if (!apiKey) return
+
+  const sources = yield* Sources
 
   const client = (yield* HttpClient.HttpClient).pipe(
     HttpClient.mapRequest(

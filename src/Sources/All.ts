@@ -1,6 +1,7 @@
 import { Layer } from "effect"
 import { SourceYtsLive } from "./Yts.ts"
 import { RealDebridLayer } from "../RealDebrid.ts"
+import { AllDebridLayer } from "../AllDebrid.ts"
 import { SourceEztvLive } from "./Eztv.ts"
 import { SourceTpbLive } from "./Tpb.ts"
 import { SourceRargbLive } from "./Rargb.ts"
@@ -15,4 +16,8 @@ export const AllSources = Layer.mergeAll(
   SourceYtsLive,
 )
 
-export const AllSourcesDebrid = Layer.mergeAll(AllSources, RealDebridLayer)
+export const AllSourcesDebrid = Layer.mergeAll(
+  AllSources,
+  RealDebridLayer,
+  AllDebridLayer,
+)

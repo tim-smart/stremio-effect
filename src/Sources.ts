@@ -5,7 +5,6 @@ import {
   Layer,
   Option,
   pipe,
-  Result,
   Schema,
   Context,
   Stream,
@@ -28,7 +27,7 @@ import {
 } from "./Domain/VideoQuery.ts"
 import { StreamRequest, streamRequestId } from "./Stremio.ts"
 import { TorrentMeta } from "./TorrentMeta.ts"
-import { Array, Iterable } from "effect"
+import { Array } from "effect"
 import { Persistable, PersistedCache } from "effect/unstable/persistence"
 import { PersistenceLayer } from "./Persistence.ts"
 
@@ -98,9 +97,6 @@ export class Sources extends Context.Service<Sources>()("stremio/Sources", {
     })
 
     const listUncached = (request: StreamRequest, baseUrl: URL) => {
-      const embellisher =
-        embellishers.size > 0 ? Iterable.headUnsafe(embellishers) : undefined
-
       // map request to queries
       return queriesFromRequest(request).pipe(
         Stream.bindTo("query"),
@@ -138,18 +134,22 @@ export class Sources extends Context.Service<Sources>()("stremio/Sources", {
             : true
         }),
         // embellish the results
-        embellisher
-          ? Stream.bindEffect(
-              "result",
-              ({ sourceResult }) =>
-                embellisher.transform(sourceResult, baseUrl),
-              { concurrency: "unbounded" },
-            )
-          : Stream.filterMap((item) =>
-              item.sourceResult._tag === "SourceStream"
-                ? Result.succeed({ ...item, result: item.sourceResult })
-                : Result.fail(null),
-            ),
+        Stream.flatMap(
+          (item) =>
+            embellishers.size > 0
+              ? Stream.fromIterable(embellishers).pipe(
+                  Stream.mapEffect(
+                    (embellisher) =>
+                      embellisher.transform(item.sourceResult, baseUrl),
+                    { concurrency: "unbounded" },
+                  ),
+                  Stream.map((result) => ({ ...item, result })),
+                )
+              : item.sourceResult._tag === "SourceStream"
+                ? Stream.make({ ...item, result: item.sourceResult })
+                : Stream.empty,
+          { concurrency: "unbounded" },
+        ),
         // filter out non matches
         Stream.filter(({ nonSeasonQuery, result }) => {
           if (result.verified) {
@@ -165,7 +165,7 @@ export class Sources extends Context.Service<Sources>()("stremio/Sources", {
           () => new Set<string>(),
           (hashes, chunk) => {
             const filtered = chunk.filter(({ result }) => {
-              const hash = result.infoHash.toLowerCase()
+              const hash = `${result.infoHash.toLowerCase()}:${result.url ?? ""}`
               if (hashes.has(hash)) {
                 return false
               }
