@@ -74,7 +74,7 @@ const ApiRoutes = Effect.gen(function* () {
   const manifest = yield* StremioManifest
   const cinemeta = yield* Cinemeta
   const baseUrl = yield* Effect.option(
-    Config.schema(Schema.URL, "ADDON_BASE_URL").asEffect(),
+    Config.schema(Schema.URL, "ADDON_BASE_URL"),
   )
   const token = yield* Config.schema(
     Schema.Redacted(Schema.String),
@@ -134,7 +134,9 @@ const ApiRoutes = Effect.gen(function* () {
     pipe(
       cinemeta.lookupSeries(current.imdbId),
       Effect.flatMap((series) =>
-        series.findEpisode(current.season, current.episode + 1).asEffect(),
+        Effect.fromOption(
+          series.findEpisode(current.season, current.episode + 1),
+        ),
       ),
       Effect.flatMap((video) =>
         sources.list(

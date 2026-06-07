@@ -108,7 +108,8 @@ export class Cinemeta extends Context.Service<Cinemeta>()("Cinemeta", {
           ]
         }
         const info = yield* pipe(
-          series.findEpisode(season, episode).asEffect(),
+          series.findEpisode(season, episode),
+          Effect.fromOption,
           Effect.flatMap((_) => Effect.fromNullishOr(_.tvdb_id)),
           Effect.flatMap(tvdb.lookupEpisode),
           Effect.option,
